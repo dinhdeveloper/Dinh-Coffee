@@ -134,6 +134,8 @@ export async function getOrderStatus(req: Request, res: Response) {
 // Dùng cho zmp-sdk's createOrder() (Checkout SDK) — mở giao diện thanh toán
 // gốc của Zalo (ZaloPay, thẻ liên kết...), giống app mẫu zaui-coffee.
 // mac phải được ký ở backend vì cần private key riêng của Mini App.
+// Đồng thời tạo sẵn 1 đơn hàng nội bộ (status "pending") để đối chiếu khi
+// nhận webhook callback từ Zalo sau này.
 export function createOrderMac(req: Request, res: Response) {
   if (!env.zmpPayment.privateKey) {
     res.status(500).json({
@@ -161,5 +163,37 @@ export function createOrderMac(req: Request, res: Response) {
 
   const mac = signCreateOrder({ amount, desc, item });
 
-  res.json({ data: { amount, desc, item, mac } });
+  const order: Order = {
+    id: generateAppTransId(),
+    items: orderItems,
+    amount,
+    status: "pending",
+    createdAt: Date.now(),
+  };
+
+  orders.set(order.id, order);
+
+  res.json({ data: { orderId: order.id, amount, desc, item, mac } });
+}
+
+// Mobile gọi ngay sau khi createOrder() (Checkout SDK) trả về orderId của
+// Zalo, để backend biết đơn nội bộ nào ứng với giao dịch nào — vì webhook
+// callback ở dưới chỉ biết orderId của Zalo, không biết id đơn của mình.
+export function linkCheckoutOrder(req: Request, res: Response) {
+  const order = orders.get(req.params.id);
+
+  if (!order) {
+    res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+    return;
+  }
+
+  const { checkoutSdkOrderId } = req.body as { checkoutSdkOrderId?: string };
+
+  if (!checkoutSdkOrderId) {
+    res.status(400).json({ message: "Thiếu checkoutSdkOrderId" });
+    return;
+  }
+
+  order.checkoutSdkOrderId = checkoutSdkOrderId;
+  res.json({ data: order });
 }

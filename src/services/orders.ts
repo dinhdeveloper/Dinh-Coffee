@@ -35,9 +35,10 @@ export function fetchOrderStatus(orderId: string) {
 }
 
 // Dùng cho zmp-sdk's createOrder() (Checkout SDK) — backend tính lại giá
-// từ dữ liệu sản phẩm gốc rồi ký "mac" (cần private key riêng, không thể
-// tính ở mobile).
+// từ dữ liệu sản phẩm gốc, tạo sẵn 1 đơn nội bộ (status "pending"), rồi ký
+// "mac" (cần private key riêng, không thể tính ở mobile).
 export type CreateOrderPayload = {
+  orderId: string;
   amount: number;
   desc: string;
   item: Record<string, unknown>[];
@@ -50,4 +51,11 @@ export function prepareZaloOrder(items: CheckoutItem[]) {
   return apiPost<CreateOrderMacResponse>("/orders/mac", { items }).then(
     (res) => res.data,
   );
+}
+
+// Gọi ngay sau khi createOrder() (Checkout SDK) trả về orderId của Zalo, để
+// backend biết đơn nội bộ nào ứng với giao dịch nào — cần cho webhook
+// callback đối chiếu kết quả thanh toán sau này.
+export function linkCheckoutOrder(orderId: string, checkoutSdkOrderId: string) {
+  return apiPost(`/orders/${orderId}/link`, { checkoutSdkOrderId });
 }

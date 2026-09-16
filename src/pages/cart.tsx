@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { useAtom, useAtomValue } from "jotai";
 import { createPortal } from "react-dom";
-import { createOrder } from "zmp-sdk";
+import { checkTransaction, createOrder, events, EventName } from "zmp-sdk";
 import { Box, Icon, Page, Text, useNavigate } from "zmp-ui";
 import { CartItem, cartItemsAtom, cartTotalAtom } from "@/store/cart";
 import { ApiError } from "@/services/api";
-import { prepareZaloOrder } from "@/services/orders";
+import { linkCheckoutOrder, prepareZaloOrder } from "@/services/orders";
 
 type CheckoutPhase = "idle" | "creating" | "success" | "failed";
 
@@ -148,10 +148,10 @@ function CartPage() {
     }, 300);
   };
 
-  // Giống cách app mẫu zaui-coffee của Zalo thanh toán: dùng thẳng
-  // createOrder() của zmp-sdk (Checkout SDK) để mở giao diện chọn phương
-  // thức thanh toán gốc của Zalo (ZaloPay, thẻ liên kết...). "mac" bắt buộc
-  // phải ký ở backend vì cần private key riêng của Mini App.
+  // Đúng theo tài liệu chính thức của Zalo (docs.zaloplatforms.com/docs/MA/
+  // checkoutSdk) và repo tutorial checkout-sdk-tutorial: createOrder() chỉ
+  // mở giao diện thanh toán — KHÔNG phải là kết quả cuối cùng. Kết quả thật
+  // lấy qua sự kiện PaymentDone rồi gọi checkTransaction() để xác nhận.
   const handleCheckout = async () => {
     setCheckoutError(null);
     setPhase("creating");
@@ -161,24 +161,42 @@ function CartPage() {
         items.map((item) => ({ id: item.id, quantity: item.quantity })),
       );
 
-      await createOrder({
+      events.once(EventName.PaymentDone, async (data) => {
+        try {
+          const result = await checkTransaction({ data });
+
+          if (result.resultCode === 1 || result.resultCode === 0) {
+            setItems([]);
+            setPhase("success");
+            setTimeout(() => {
+              setPhase("idle");
+              navigate("/home");
+            }, 1600);
+          } else {
+            setPhase("failed");
+          }
+        } catch (err) {
+          setPhase("failed");
+        }
+      });
+
+      const { orderId: checkoutSdkOrderId } = await createOrder({
         amount: order.amount,
         desc: order.desc,
         item: order.item,
         mac: order.mac,
       });
 
-      setItems([]);
-      setPhase("success");
-      setTimeout(() => {
-        setPhase("idle");
-        navigate("/home");
-      }, 1600);
+      // Liên kết đơn nội bộ với giao dịch của Zalo để backend đối chiếu
+      // được khi nhận webhook callback.
+      linkCheckoutOrder(order.orderId, checkoutSdkOrderId).catch(() => {});
     } catch (err) {
-      setPhase(err instanceof ApiError ? "idle" : "failed");
-      if (err instanceof ApiError) {
-        setCheckoutError(err.message);
-      }
+      setPhase("idle");
+      setCheckoutError(
+        err instanceof ApiError
+          ? err.message
+          : "Không thể mở giao diện thanh toán, vui lòng thử lại",
+      );
     }
   };
 
