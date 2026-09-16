@@ -1,16 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAtom, useAtomValue } from "jotai";
 import { createPortal } from "react-dom";
-import { openWebview } from "zmp-sdk";
+import { createOrder } from "zmp-sdk";
 import { Box, Icon, Page, Text, useNavigate } from "zmp-ui";
 import { CartItem, cartItemsAtom, cartTotalAtom } from "@/store/cart";
 import { ApiError } from "@/services/api";
-import { checkoutOrder, fetchOrderStatus } from "@/services/orders";
+import { prepareZaloOrder } from "@/services/orders";
 
-const POLL_INTERVAL_MS = 3000;
-const MAX_POLL_ATTEMPTS = 20;
-
-type CheckoutPhase = "idle" | "creating" | "waiting" | "success" | "failed";
+type CheckoutPhase = "idle" | "creating" | "success" | "failed";
 
 function formatPrice(value: number) {
   return `${value.toLocaleString("vi-VN")}đ`;
@@ -127,53 +124,11 @@ function CartPage() {
   const [mounted, setMounted] = useState(false);
   const [phase, setPhase] = useState<CheckoutPhase>("idle");
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
-  const [checking, setChecking] = useState(false);
-  const orderIdRef = useRef<string | null>(null);
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pollAttemptsRef = useRef(0);
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setMounted(true));
     return () => cancelAnimationFrame(raf);
   }, []);
-
-  const stopPolling = () => {
-    if (pollTimerRef.current) {
-      clearInterval(pollTimerRef.current);
-      pollTimerRef.current = null;
-    }
-  };
-
-  useEffect(() => stopPolling, []);
-
-  const checkStatus = async (orderId: string) => {
-    setChecking(true);
-    try {
-      const order = await fetchOrderStatus(orderId);
-
-      if (order.status === "paid") {
-        stopPolling();
-        setPhase("success");
-        setItems([]);
-        setTimeout(() => {
-          setPhase("idle");
-          navigate("/home");
-        }, 1600);
-      } else if (order.status === "failed") {
-        stopPolling();
-        setPhase("failed");
-      } else {
-        pollAttemptsRef.current += 1;
-        if (pollAttemptsRef.current >= MAX_POLL_ATTEMPTS) {
-          stopPolling();
-        }
-      }
-    } catch (err) {
-      // lỗi mạng tạm thời, giữ nguyên trạng thái chờ để tự thử lại
-    } finally {
-      setChecking(false);
-    }
-  };
 
   const updateQuantity = (id: string, delta: number) => {
     setItems((prev) =>
@@ -193,50 +148,38 @@ function CartPage() {
     }, 300);
   };
 
-  const openPaymentPage = async (url: string) => {
-    try {
-      await openWebview({ url, config: { style: "normal" } });
-    } catch (err) {
-      // openWebview chỉ hoạt động trong app Zalo thật, fallback khi chạy trên trình duyệt/dev
-      window.open(url, "_blank");
-    }
-  };
-
+  // Giống cách app mẫu zaui-coffee của Zalo thanh toán: dùng thẳng
+  // createOrder() của zmp-sdk (Checkout SDK) để mở giao diện chọn phương
+  // thức thanh toán gốc của Zalo (ZaloPay, thẻ liên kết...). "mac" bắt buộc
+  // phải ký ở backend vì cần private key riêng của Mini App.
   const handleCheckout = async () => {
     setCheckoutError(null);
     setPhase("creating");
 
     try {
-      const result = await checkoutOrder(
+      const order = await prepareZaloOrder(
         items.map((item) => ({ id: item.id, quantity: item.quantity })),
       );
 
-      orderIdRef.current = result.orderId;
-      pollAttemptsRef.current = 0;
-      setPhase("waiting");
+      await createOrder({
+        amount: order.amount,
+        desc: order.desc,
+        item: order.item,
+        mac: order.mac,
+      });
 
-      openPaymentPage(result.orderUrl);
-
-      pollTimerRef.current = setInterval(() => {
-        if (orderIdRef.current) checkStatus(orderIdRef.current);
-      }, POLL_INTERVAL_MS);
+      setItems([]);
+      setPhase("success");
+      setTimeout(() => {
+        setPhase("idle");
+        navigate("/home");
+      }, 1600);
     } catch (err) {
-      setPhase("idle");
-      setCheckoutError(
-        err instanceof ApiError
-          ? err.message
-          : "Không thể kết nối tới cổng thanh toán, vui lòng thử lại",
-      );
+      setPhase(err instanceof ApiError ? "idle" : "failed");
+      if (err instanceof ApiError) {
+        setCheckoutError(err.message);
+      }
     }
-  };
-
-  const handleManualCheck = () => {
-    if (orderIdRef.current) checkStatus(orderIdRef.current);
-  };
-
-  const handleCancelWaiting = () => {
-    stopPolling();
-    setPhase("idle");
   };
 
   const handleCloseFailed = () => {
@@ -393,37 +336,6 @@ function CartPage() {
         createPortal(
           <Box className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 px-8">
             <Box className="w-full max-w-xs rounded-3xl bg-white p-6 text-center shadow-[0_20px_60px_rgba(0,0,0,0.25)]">
-              {phase === "waiting" && (
-                <>
-                  <Box className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
-                    <span className="h-7 w-7 animate-spin rounded-full border-[3px] border-blue-200 border-t-blue-500" />
-                  </Box>
-                  <Text.Title size="normal" className="mt-4 font-bold text-[#1a1a1a]">
-                    Đang chờ thanh toán
-                  </Text.Title>
-                  <Text size="small" className="mt-1 text-gray-500">
-                    Hoàn tất thanh toán ZaloPay ở cửa sổ vừa mở, rồi quay lại đây
-                  </Text>
-
-                  <button
-                    type="button"
-                    onClick={handleManualCheck}
-                    disabled={checking}
-                    className="mt-5 w-full rounded-full border-0 bg-[#1a1a1a] py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98] disabled:opacity-70"
-                  >
-                    {checking ? "Đang kiểm tra..." : "Tôi đã thanh toán"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleCancelWaiting}
-                    className="mt-2 w-full rounded-full border-0 bg-transparent py-2.5 text-sm font-medium text-gray-400 active:opacity-60"
-                  >
-                    Hủy
-                  </button>
-                </>
-              )}
-
               {phase === "success" && (
                 <>
                   <Box

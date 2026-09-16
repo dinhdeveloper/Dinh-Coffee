@@ -16,4 +16,10 @@ export const env = {
       `http://localhost:${process.env.PORT ?? 4000}/api/payments/zalopay/callback`,
     redirectUrl: process.env.ZALOPAY_REDIRECT_URL ?? "http://localhost:3000/cart",
   },
+  // Private key cấp riêng cho Mini App khi bật tính năng Payment trong
+  // trang quản trị Mini App (khác với key1/key2 của ZaloPay ở trên).
+  // Dùng để ký "mac" cho zmp-sdk's createOrder() (Checkout SDK).
+  zmpPayment: {
+    privateKey: process.env.ZMP_PAYMENT_PRIVATE_KEY ?? "",
+  },
 };

@@ -33,3 +33,21 @@ export function fetchOrderStatus(orderId: string) {
     (res) => res.data,
   );
 }
+
+// Dùng cho zmp-sdk's createOrder() (Checkout SDK) — backend tính lại giá
+// từ dữ liệu sản phẩm gốc rồi ký "mac" (cần private key riêng, không thể
+// tính ở mobile).
+export type CreateOrderPayload = {
+  amount: number;
+  desc: string;
+  item: Record<string, unknown>[];
+  mac: string;
+};
+
+type CreateOrderMacResponse = { data: CreateOrderPayload };
+
+export function prepareZaloOrder(items: CheckoutItem[]) {
+  return apiPost<CreateOrderMacResponse>("/orders/mac", { items }).then(
+    (res) => res.data,
+  );
+}

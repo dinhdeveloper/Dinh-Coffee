@@ -1,7 +1,9 @@
 import { Request, Response } from "express";
+import { env } from "@/config/env";
 import { products } from "@/data/products.data";
 import { orders } from "@/data/orders.store";
 import { createZaloPayOrder, queryZaloPayOrder } from "@/lib/zalopay";
+import { signCreateOrder } from "@/lib/zmp-payment";
 import { Order, OrderItem } from "@/types/order";
 
 function parsePrice(price: string) {
@@ -17,17 +19,10 @@ function generateAppTransId() {
   return `${yy}${mm}${dd}_${random}`;
 }
 
-export async function checkout(req: Request, res: Response) {
-  const body = req.body as { items?: { id: string; quantity: number }[] };
-
-  if (!body.items || body.items.length === 0) {
-    res.status(400).json({ message: "Giỏ hàng đang trống" });
-    return;
-  }
-
+function resolveOrderItems(items: { id: string; quantity: number }[] = []) {
   const orderItems: OrderItem[] = [];
 
-  for (const line of body.items) {
+  for (const line of items) {
     const product = products.find((item) => item.id === line.id);
     if (!product || !line.quantity || line.quantity < 1) continue;
 
@@ -39,15 +34,28 @@ export async function checkout(req: Request, res: Response) {
     });
   }
 
-  if (orderItems.length === 0) {
-    res.status(400).json({ message: "Sản phẩm trong giỏ hàng không hợp lệ" });
-    return;
-  }
-
   const amount = orderItems.reduce(
     (sum, item) => sum + parsePrice(item.price) * item.quantity,
     0,
   );
+
+  return { orderItems, amount };
+}
+
+export async function checkout(req: Request, res: Response) {
+  const body = req.body as { items?: { id: string; quantity: number }[] };
+
+  if (!body.items || body.items.length === 0) {
+    res.status(400).json({ message: "Giỏ hàng đang trống" });
+    return;
+  }
+
+  const { orderItems, amount } = resolveOrderItems(body.items);
+
+  if (orderItems.length === 0) {
+    res.status(400).json({ message: "Sản phẩm trong giỏ hàng không hợp lệ" });
+    return;
+  }
 
   const appTransId = generateAppTransId();
 
@@ -121,4 +129,37 @@ export async function getOrderStatus(req: Request, res: Response) {
   }
 
   res.json({ data: order });
+}
+
+// Dùng cho zmp-sdk's createOrder() (Checkout SDK) — mở giao diện thanh toán
+// gốc của Zalo (ZaloPay, thẻ liên kết...), giống app mẫu zaui-coffee.
+// mac phải được ký ở backend vì cần private key riêng của Mini App.
+export function createOrderMac(req: Request, res: Response) {
+  if (!env.zmpPayment.privateKey) {
+    res.status(500).json({
+      message:
+        "Server chưa cấu hình ZMP_PAYMENT_PRIVATE_KEY (private key thanh toán của Mini App)",
+    });
+    return;
+  }
+
+  const body = req.body as { items?: { id: string; quantity: number }[] };
+  const { orderItems, amount } = resolveOrderItems(body.items);
+
+  if (orderItems.length === 0) {
+    res.status(400).json({ message: "Sản phẩm trong giỏ hàng không hợp lệ" });
+    return;
+  }
+
+  const desc = "Thanh toan don hang BoomBerry";
+  const item = orderItems.map((line) => ({
+    id: line.id,
+    name: line.title,
+    price: parsePrice(line.price),
+    quantity: line.quantity,
+  }));
+
+  const mac = signCreateOrder({ amount, desc, item });
+
+  res.json({ data: { amount, desc, item, mac } });
 }
