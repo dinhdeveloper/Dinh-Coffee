@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: boomberry-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: ZALOPAY_APP_ID
+        value: "15847"
+      - key: ZALOPAY_KEY1
+        value: "0U93tRzdWEkMLVNYH90aBu5ca0Psql8T"
+      - key: ZALOPAY_KEY2
+        value: "PurTcToVhvUt7vR2jO6He4lh3nfNEiks"
+      - key: ZALOPAY_ENDPOINT
+        value: "https://sb-openapi.zalopay.vn/v2/"
+      # Sau khi deploy xong, thay 2 biến dưới bằng URL thật (xem README)
+      - key: ZALOPAY_CALLBACK_URL
+        value: "https://boomberry-backend.onrender.com/api/payments/zalopay/callback"
+      - key: ZALOPAY_REDIRECT_URL
+        value: "https://boomberry-backend.onrender.com/cart"

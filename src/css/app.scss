@@ -1,0 +1,127 @@
+.page {
+  padding: 16px 16px 96px 16px;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  overflow: hidden;
+}
+
+.zaui-app {
+  height: 100%;
+}
+
+.home-routes,
+.home-routes .zaui-routes,
+.home-routes .zaui-routes-item {
+  height: 100%;
+  min-height: 0;
+}
+
+.home-routes .zaui-routes-item {
+  max-height: none;
+  overflow: hidden;
+}
+
+.app-bottom-navigation {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--zaui-safe-area-inset-bottom, 0px) + 14px);
+  z-index: 50;
+  display: flex;
+  width: min(calc(100vw - 24px), 340px);
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.app-bottom-navigation__item {
+  pointer-events: auto;
+  display: inline-flex;
+  height: 52px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: rgba(255, 255, 255, 0.92);
+  color: #6f6b78;
+  box-shadow: 0 12px 28px rgba(28, 24, 18, 0.08);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.app-bottom-navigation__item--circle {
+  width: 52px;
+  flex: 0 0 52px;
+  border-radius: 999px;
+}
+
+.app-bottom-navigation__item--pill {
+  min-width: 104px;
+  gap: 10px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.app-bottom-navigation__item:active {
+  transform: scale(0.96);
+}
+
+.app-bottom-navigation__item[aria-current="page"] {
+  background: #ffffff;
+  color: #e11d48;
+  box-shadow: 0 14px 30px rgba(225, 29, 72, 0.18);
+}
+
+.app-bottom-navigation__item .zaui-icon {
+  color: currentColor;
+}
+
+@media (max-width: 390px) {
+  .app-bottom-navigation {
+    width: min(calc(100vw - 20px), 312px);
+    gap: 6px;
+  }
+
+  .app-bottom-navigation__item {
+    height: 48px;
+  }
+
+  .app-bottom-navigation__item--circle {
+    width: 48px;
+    flex-basis: 48px;
+  }
+
+  .app-bottom-navigation__item--pill {
+    min-width: 94px;
+    padding: 0 14px;
+    font-size: 14px;
+  }
+}
+
+.section-container {
+  padding: 16px;
+  background: #ffffff;
+  border-radius: 8px;
+  margin-bottom: 24px;
+}
+
+.zaui-list-item {
+  cursor: pointer;
+}
+
+/* index.css hoặc file CSS global của app */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
