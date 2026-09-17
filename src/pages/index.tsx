@@ -4,6 +4,8 @@ import { Page, Text, Swiper, Box, Icon, useNavigate } from "zmp-ui";
 import { fetchProducts, Product } from "@/services/products";
 import { fetchProperties, Property } from "@/services/properties";
 import { cartCountAtom } from "@/store/cart";
+import StoreStories from "@/components/store-stories";
+import ProductCard from "@/components/product-card";
 
 function HomePage() {
   const navigate = useNavigate();
@@ -117,19 +119,32 @@ function HomePage() {
       {/* =========================
           GREETING
       ========================== */}
-      <Text className="pt-1 text-xl font-bold">
-        Xin chào! <span className="text-2xl">👋</span>
+      <Text className="pt-1 text-lg font-bold">
+        Xin chào! <span className="text-xl">👋</span>
       </Text>
 
-      <Text className="text-xl font-normal italic text-gray-700">
+      <Text className="text-base font-normal italic text-gray-700">
         Rất vui được gặp bạn.
       </Text>
+
+      {/* =========================
+          STORE STORIES (24H)
+      ========================== */}
+      <StoreStories
+        loading={propertiesLoading}
+        stores={properties.map((property) => ({
+          id: property.id,
+          title: property.title,
+          avatar: property.thumbnail,
+          image: property.image,
+        }))}
+      />
 
       <Box className="pt-3 relative flex gap-3">
         {/* Main card */}
         <Box className="relative min-w-0 flex-1 rounded-2xl border border-white/40 bg-white/10 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.15)] backdrop-blur-xl">
-          <Text className="text-xl font-bold leading-tight text-black">
-            Mỗi ngày 1 câu chuyện
+          <Text className="text-lg font-bold leading-tight text-black">
+            Khuyến mãi hôm nay.
           </Text>
 
           <Text className="mt-2 line-clamp-2 pr-9 text-sm leading-5 text-black/80">
@@ -260,10 +275,8 @@ function HomePage() {
 
           <Text
             size="small"
-            className="font-medium text-gray-500 active:opacity-60"
-            onClick={() => {
-              // TODO: điều hướng sang trang danh sách đầy đủ
-            }}
+            className="cursor-pointer font-medium text-gray-500 transition-transform duration-150 active:scale-95 active:opacity-60"
+            onClick={() => navigate("/suggestions")}
           >
             Xem tất cả
           </Text>
@@ -272,13 +285,13 @@ function HomePage() {
         {/* Product horizontal list */}
         {loading ? (
           <Box
-            className="mt-3 flex gap-3 overflow-x-auto pb-2"
+            className="mt-3 flex gap-4 overflow-x-auto pb-2"
             style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
           >
             {[0, 1, 2].map((i) => (
               <Box
                 key={i}
-                className="h-52 w-40 flex-none animate-pulse rounded-lg bg-gray-200"
+                className="h-52 w-40 flex-none animate-pulse rounded-2xl bg-gray-200"
               />
             ))}
           </Box>
@@ -290,39 +303,19 @@ function HomePage() {
           </Box>
         ) : (
           <Box
-            className="mt-3 flex gap-3 overflow-x-auto pb-2"
+            className="mt-3 flex gap-4 overflow-x-auto pb-6"
             style={{
               scrollbarWidth: "none",
               msOverflowStyle: "none",
             }}
           >
             {products.map((item) => (
-              <Box
+              <ProductCard
                 key={item.id}
+                product={item}
                 onClick={() => navigate(`/product/${item.id}`)}
-                className="relative h-52 w-40 flex-none cursor-pointer overflow-hidden rounded-lg transition-transform duration-150 active:scale-95"
-              >
-                <img
-                  src={item.image}
-                  alt={item.title}
-                  className="h-full w-full object-cover"
-                />
-
-                <Box className="absolute inset-x-0 bottom-0 flex flex-col justify-end bg-gradient-to-t from-black/60 via-black/30 to-transparent p-3 backdrop-blur-md">
-                  <Text.Title
-                    size="small"
-                    className="line-clamp-1 text-white"
-                  >
-                    {item.title}
-                  </Text.Title>
-
-                  <Text
-                    className="mt-1 font-bold text-white/90"
-                  >
-                    {item.price}
-                  </Text>
-                </Box>
-              </Box>
+                className="w-40 flex-none"
+              />
             ))}
           </Box>
         )}
@@ -332,7 +325,7 @@ function HomePage() {
           PROPERTY / FEATURE CARD
       ========================== */}
 
-      <Box className="mt-6 w-full flex-none">
+      <Box className="mt-7 w-full flex-none">
         {propertiesLoading ? (
           <Box
             className="w-full animate-pulse rounded-3xl bg-gray-200"

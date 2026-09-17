@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Box, Icon, Page, Text, useNavigate, useParams } from "zmp-ui";
 import { fetchProducts, Product } from "@/services/products";
+import ProductCard from "@/components/product-card";
 
 function CategoryProductsPage() {
   const navigate = useNavigate();
@@ -76,7 +77,7 @@ function CategoryProductsPage() {
           LIST
       ========================== */}
       {loading ? (
-        <Box className="mt-5 grid grid-cols-2 gap-3">
+        <Box className="mt-5 grid grid-cols-2 gap-4">
           {[0, 1, 2, 3].map((i) => (
             <Box
               key={i}
@@ -100,29 +101,13 @@ function CategoryProductsPage() {
           </Text>
         </Box>
       ) : (
-        <Box className="mt-5 grid grid-cols-2 gap-3">
+        <Box className="mt-5 grid grid-cols-2 gap-4">
           {products.map((item) => (
-            <Box
+            <ProductCard
               key={item.id}
+              product={item}
               onClick={() => navigate(`/product/${item.id}`)}
-              className="relative h-52 cursor-pointer overflow-hidden rounded-lg transition-transform duration-150 active:scale-95"
-            >
-              <img
-                src={item.image}
-                alt={item.title}
-                className="h-full w-full object-cover"
-              />
-
-              <Box className="absolute inset-x-0 bottom-0 flex flex-col justify-end bg-gradient-to-t from-black/60 via-black/30 to-transparent p-3 backdrop-blur-md">
-                <Text.Title size="small" className="line-clamp-1 text-white">
-                  {item.title}
-                </Text.Title>
-
-                <Text className="mt-1 font-bold text-white/90">
-                  {item.price}
-                </Text>
-              </Box>
-            </Box>
+            />
           ))}
         </Box>
       )}

@@ -1,13 +1,36 @@
 import { useEffect, useRef, useState } from "react";
 import { useAtom, useAtomValue } from "jotai";
 import { createPortal } from "react-dom";
-import { openOutApp } from "zmp-sdk";
+import { events, EventName, openWebview } from "zmp-sdk";
 import { Box, Icon, Page, Text, useNavigate } from "zmp-ui";
 import { CartItem, cartItemsAtom, cartTotalAtom } from "@/store/cart";
 import { ApiError } from "@/services/api";
 import { checkoutOrder, fetchOrderStatus } from "@/services/orders";
 
 type CheckoutPhase = "idle" | "creating" | "waiting" | "success" | "failed";
+
+// Lỗi từ zmp-sdk (vd. openOutApp) không phải Error chuẩn của JS, mà là
+// object dạng { code, message, api } — phải đọc riêng, không thì chỉ in
+// ra "[object Object]" không có thông tin gì.
+function describeError(err: unknown): string {
+  if (err instanceof Error) return `${err.name}: ${err.message}`;
+  if (err && typeof err === "object") {
+    const { code, message, api } = err as {
+      code?: number;
+      message?: string;
+      api?: string;
+    };
+    if (code !== undefined || message !== undefined) {
+      return `code=${code ?? "?"} ${message ?? ""} ${api ? `(${api})` : ""}`.trim();
+    }
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return String(err);
+    }
+  }
+  return String(err);
+}
 
 const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS = 5 * 60 * 1000;
@@ -157,10 +180,10 @@ function CartPage() {
   };
 
   // ZaloPay Payment Gateway (docs.zalopay.vn): backend tạo đơn qua API
-  // /v2/create rồi trả về order_url, mobile mở order_url bằng openOutApp()
-  // để chuyển sang app/web ZaloPay thanh toán. Vì openOutApp() chỉ đảm bảo
-  // đã MỞ được app ZaloPay (không biết kết quả), sau khi mở phải poll
-  // fetchOrderStatus() để biết đơn đã "paid"/"failed" hay chưa.
+  // /v2/create rồi trả về order_url, mobile mở order_url bằng openWebview()
+  // ngay trong Mini App. Khi webview đóng lại (sự kiện WebviewClosed) vẫn
+  // chưa chắc đã thanh toán xong, nên phải poll fetchOrderStatus() để biết
+  // đơn đã "paid"/"failed" hay chưa.
   const pollOrderStatus = (orderId: string, startedAt: number) => {
     fetchOrderStatus(orderId)
       .then((order) => {
@@ -212,8 +235,7 @@ function CartPage() {
         items.map((item) => ({ id: item.id, quantity: item.quantity })),
       );
     } catch (err) {
-      const detail =
-        err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      const detail = describeError(err);
       console.error("[checkout] tạo đơn thất bại:", detail);
       setPhase("idle");
       setCheckoutError(
@@ -225,13 +247,21 @@ function CartPage() {
     }
 
     try {
-      await openOutApp({ url: order.orderUrl });
+      // openOutApp bị Zalo chặn quyền (code -1403) trừ khi Mini App được
+      // cấp quyền riêng, nên dùng openWebview để mở trang thanh toán
+      // ZaloPay ngay trong Mini App thay vì thoát ra app ngoài.
+      await openWebview({
+        url: order.orderUrl,
+        config: { style: "bottomSheet" },
+      });
       setPhase("waiting");
-      pollOrderStatus(order.orderId, Date.now());
+
+      events.once(EventName.WebviewClosed, () => {
+        pollOrderStatus(order.orderId, Date.now());
+      });
     } catch (err) {
-      const detail =
-        err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-      console.error("[checkout] openOutApp thất bại:", detail, order.orderUrl);
+      const detail = describeError(err);
+      console.error("[checkout] openWebview thất bại:", detail, order.orderUrl);
       setPhase("idle");
       setCheckoutError(
         `Không thể mở giao diện thanh toán (${detail}), vui lòng thử lại`,

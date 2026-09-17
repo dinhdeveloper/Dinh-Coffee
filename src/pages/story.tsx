@@ -5,7 +5,12 @@ function StoryPage() {
 
   return (
     <Page className="flex h-full min-h-0 flex-col overflow-y-auto bg-transparent px-4 py-2 hide-scrollbar">
-      <Box className="flex items-center gap-3 pt-1">
+      <Box
+        className="flex items-center gap-3"
+        style={{
+          paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px) + 12px)",
+        }}
+      >
         <button
           type="button"
           onClick={() => navigate(-1)}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Box, Icon, Page, Text, useNavigate } from "zmp-ui";
 import { fetchProducts, Product } from "@/services/products";
+import ProductCard from "@/components/product-card";
 
 const keywords = ["Trà sữa", "Cà phê", "Trà trái cây", "Bánh ngọt", "Matcha"];
 
@@ -10,39 +11,6 @@ function normalize(value: string) {
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .trim();
-}
-
-function ProductCard({
-  item,
-  onClick,
-}: {
-  item: Product;
-  onClick: () => void;
-}) {
-  return (
-    <Box
-      onClick={onClick}
-      className="relative h-40 cursor-pointer overflow-hidden rounded-xl transition-transform duration-150 active:scale-95"
-    >
-      <img
-        src={item.image}
-        alt={item.title}
-        className="h-full w-full object-cover"
-      />
-
-      <Box className="absolute inset-x-0 bottom-0 flex flex-col justify-end bg-gradient-to-t from-black/60 via-black/25 to-transparent p-2.5">
-        <Text
-          size="small"
-          className="line-clamp-1 text-left font-semibold text-white"
-        >
-          {item.title}
-        </Text>
-        <Text size="xSmall" className="text-left font-bold text-white/90">
-          {item.price}
-        </Text>
-      </Box>
-    </Box>
-  );
 }
 
 function SearchPage() {
@@ -136,7 +104,7 @@ function SearchPage() {
       ========================== */}
       <Box className="mt-5 w-full flex-1">
         {loading && (
-          <Box className="grid grid-cols-2 gap-3">
+          <Box className="grid grid-cols-2 gap-4">
             {[0, 1, 2, 3].map((i) => (
               <Box
                 key={i}
@@ -160,11 +128,14 @@ function SearchPage() {
               Món phổ biến
             </Text.Title>
 
-            <Box className="mt-3 grid grid-cols-2 gap-3">
+            <Box
+              className="mt-3 grid grid-cols-2 gap-5"
+              style={{ paddingBottom: 32 }}
+            >
               {products.slice(0, 6).map((item) => (
                 <ProductCard
                   key={item.id}
-                  item={item}
+                  product={item}
                   onClick={() => navigate(`/product/${item.id}`)}
                 />
               ))}
@@ -181,11 +152,14 @@ function SearchPage() {
               {results.length} kết quả cho "{query}"
             </Text>
 
-            <Box className="mt-3 grid grid-cols-2 gap-3">
+            <Box
+              className="mt-3 grid grid-cols-2 gap-4"
+              style={{ paddingBottom: 32 }}
+            >
               {results.map((item) => (
                 <ProductCard
                   key={item.id}
-                  item={item}
+                  product={item}
                   onClick={() => navigate(`/product/${item.id}`)}
                 />
               ))}

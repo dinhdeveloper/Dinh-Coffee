@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Avatar, Box, Button, Icon, Text, useSnackbar } from "zmp-ui";
+import { Avatar, Box, Icon, Page, Text, useNavigate, useSnackbar } from "zmp-ui";
 
 import {
   getStoredZaloUser,
@@ -9,12 +9,22 @@ import {
   type ZaloAuthUser,
 } from "@/services/zalo-auth";
 
+type MenuItem = {
+  icon: string;
+  bg: string;
+  label: string;
+  description: string;
+  onClick: () => void;
+};
+
 function ProfilePage() {
+  const navigate = useNavigate();
   const { openSnackbar } = useSnackbar();
   const [user, setUser] = useState<ZaloAuthUser | null>(() =>
     getStoredZaloUser(),
   );
   const [isLoading, setIsLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const syncUser = () => setUser(getStoredZaloUser());
@@ -22,6 +32,11 @@ function ProfilePage() {
     window.addEventListener(ZALO_AUTH_CHANGED_EVENT, syncUser);
 
     return () => window.removeEventListener(ZALO_AUTH_CHANGED_EVENT, syncUser);
+  }, []);
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(raf);
   }, []);
 
   const showMessage = (text: string, type: "success" | "error" | "info") => {
@@ -45,11 +60,9 @@ function ProfilePage() {
       setUser(nextUser);
       showMessage("Đăng nhập Zalo thành công.", "success");
     } catch (error) {
-      // Log full error (stack and message) to console for debugging
       // eslint-disable-next-line no-console
       console.error("Không đăng nhập được Zalo:", error);
 
-      // Show a concise message to user and suggest checking console/device logs
       showMessage(
         "Không thể lấy profile Zalo — kiểm tra console/devtools để biết chi tiết.",
         "error",
@@ -65,50 +78,160 @@ function ProfilePage() {
     showMessage("Đã đăng xuất khỏi tài khoản trong app.", "success");
   };
 
+  const comingSoon = () => showMessage("Tính năng sắp ra mắt.", "info");
+
+  const menuItems: MenuItem[] = [
+    {
+      icon: "🧾",
+      bg: "#FFF0F5",
+      label: "Đơn hàng của tôi",
+      description: "Theo dõi đơn đang giao & lịch sử mua hàng",
+      onClick: comingSoon,
+    },
+    {
+      icon: "📍",
+      bg: "#FFF4E8",
+      label: "Địa chỉ giao hàng",
+      description: "Quản lý địa chỉ nhận hàng của bạn",
+      onClick: comingSoon,
+    },
+    {
+      icon: "☕",
+      bg: "#F3EEFF",
+      label: "Về BoomBerry",
+      description: "Câu chuyện phía sau từng ly nước",
+      onClick: () => navigate("/story"),
+    },
+    {
+      icon: "💬",
+      bg: "#F5EFE6",
+      label: "Trợ giúp & liên hệ",
+      description: "Câu hỏi thường gặp, hỗ trợ đặt hàng",
+      onClick: comingSoon,
+    },
+  ];
+
   return (
-    <Box className="space-y-4 py-4">
-        <Box className="rounded-lg bg-white p-4 shadow-[0_8px_24px_rgba(0,0,0,0.06)]">
-          <Box className="flex items-center gap-3">
-            <Avatar
-              size={64}
-              src={user?.avatar}
-              story="default"
-              online={Boolean(user)}
+    <Page
+      className="flex h-full min-h-0 flex-col overflow-y-auto bg-transparent px-4 py-2 hide-scrollbar"
+      style={{
+        paddingBottom: "calc(70px + env(safe-area-inset-bottom))",
+        scrollbarWidth: "none",
+        msOverflowStyle: "none",
+      }}
+    >
+      {/* =========================
+          ACCOUNT CARD
+      ========================== */}
+      <Box
+        className="mt-1 flex-none rounded-2xl border border-white/40 bg-white/10 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.15)] backdrop-blur-xl transition-all duration-500 ease-out"
+        style={{
+          opacity: mounted ? 1 : 0,
+          transform: mounted ? "translateY(0)" : "translateY(14px)",
+        }}
+      >
+        <Box className="flex items-center gap-3">
+          <Avatar
+            size={60}
+            src={user?.avatar}
+            story="default"
+            online={Boolean(user)}
+          >
+            <Icon icon="zi-user" />
+          </Avatar>
+          <Box className="min-w-0 flex-1">
+            <Text.Title className="truncate text-[18px] font-bold text-[#1a1a1a]">
+              {user?.name || "Tài khoản Zalo"}
+            </Text.Title>
+            <Text size="small" className="mt-0.5 truncate text-black/60">
+              {user
+                ? "Đã đăng nhập bằng Zalo"
+                : "Đăng nhập để lưu đơn hàng & ưu đãi của bạn"}
+            </Text>
+          </Box>
+        </Box>
+
+        {user ? (
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="mt-4 w-full rounded-full border-0 bg-white/70 py-3 text-sm font-semibold text-red-500 shadow-[0_4px_14px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-transform active:scale-[0.98]"
+          >
+            Đăng xuất
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleLogin}
+            disabled={isLoading}
+            className="relative mt-4 flex w-full items-center justify-center overflow-hidden rounded-full border-0 bg-[#1a1a1a] py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98] disabled:opacity-80"
+          >
+            <span
+              className="flex items-center gap-2 transition-all duration-300"
+              style={{
+                opacity: isLoading ? 0 : 1,
+                transform: isLoading ? "translateY(-16px)" : "translateY(0)",
+              }}
             >
-              <Icon icon="zi-user" />
-            </Avatar>
+              Đăng nhập với Zalo
+            </span>
+            <span
+              className="absolute inset-0 flex items-center justify-center transition-all duration-300"
+              style={{
+                opacity: isLoading ? 1 : 0,
+                transform: isLoading ? "translateY(0)" : "translateY(16px)",
+              }}
+            >
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+            </span>
+          </button>
+        )}
+      </Box>
+
+      {/* =========================
+          MENU
+      ========================== */}
+      <Box className="mt-5 flex-none">
+        {menuItems.map((item, index) => (
+          <button
+            key={item.label}
+            type="button"
+            onClick={item.onClick}
+            className="mb-3 flex w-full items-center gap-3 rounded-2xl border border-white/40 bg-white/10 p-3 text-left shadow-[0_8px_24px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 ease-out active:scale-[0.98]"
+            style={{
+              opacity: mounted ? 1 : 0,
+              transform: mounted ? "translateY(0)" : "translateY(14px)",
+              transitionDelay: mounted ? `${80 + index * 60}ms` : "0ms",
+            }}
+          >
+            <Box
+              className="flex h-11 w-11 flex-none items-center justify-center rounded-xl"
+              style={{ backgroundColor: item.bg }}
+            >
+              <Text className="text-[20px] leading-none">{item.icon}</Text>
+            </Box>
+
             <Box className="min-w-0 flex-1">
-              <Text.Title className="truncate text-[18px] font-semibold text-[#2f2f2f]">
-                {user?.name || "Tài khoản Zalo"}
-              </Text.Title>
-              <Text className="mt-1 text-[13px] text-[#6f747a]">
-                {user?.id || "Đăng nhập để dùng profile Zalo trong BoomBerry."}
+              <Text size="small" className="font-bold text-[#2f2f2f]">
+                {item.label}
+              </Text>
+              <Text size="xSmall" className="mt-0.5 line-clamp-1 text-gray-500">
+                {item.description}
               </Text>
             </Box>
-          </Box>
 
-          {user ? (
-            <Button
-              fullWidth
-              type="danger"
-              onClick={handleLogout}
-              className="mt-4"
-            >
-              Đăng xuất
-            </Button>
-          ) : (
-            <Button
-              fullWidth
-              type="highlight"
-              loading={isLoading}
-              onClick={handleLogin}
-              className="mt-4"
-            >
-              Đăng nhập
-            </Button>
-          )}
-        </Box>
+            <Icon icon="zi-chevron-right" size={18} className="flex-none text-gray-300" />
+          </button>
+        ))}
       </Box>
+
+      <Text
+        size="xxSmall"
+        className="mb-2 mt-2 flex-none text-center text-gray-400"
+      >
+        BoomBerry · Mỗi ngày 1 câu chuyện ☕
+      </Text>
+    </Page>
   );
 }
 

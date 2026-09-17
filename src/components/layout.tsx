@@ -17,8 +17,15 @@ import StoryPage from "@/pages/story";
 import ProductDetailPage from "@/pages/product-detail";
 import CategoryProductsPage from "@/pages/category-products";
 import CartPage from "@/pages/cart";
+import SuggestionsPage from "@/pages/suggestions";
 
-const SUB_PAGE_PREFIXES = ["/product/", "/category/", "/cart"];
+const SUB_PAGE_PREFIXES = [
+  "/product/",
+  "/category/",
+  "/cart",
+  "/suggestions",
+  "/story",
+];
 
 const AppHeaderGate = () => {
   const location = useLocation();
@@ -35,7 +42,8 @@ const NavigationGate = () => {
   const location = useLocation();
   const hideNavigation =
     location.pathname.startsWith("/category/") ||
-    location.pathname.startsWith("/cart");
+    location.pathname.startsWith("/cart") ||
+    location.pathname.startsWith("/suggestions");
 
   if (hideNavigation) return null;
 
@@ -65,6 +73,7 @@ const Layout = () => {
               <Route path="/product/:id" element={<ProductDetailPage />} />
               <Route path="/category/:name" element={<CategoryProductsPage />} />
               <Route path="/cart" element={<CartPage />} />
+              <Route path="/suggestions" element={<SuggestionsPage />} />
             </AnimationRoutes>
           </Box>
           <NavigationGate />

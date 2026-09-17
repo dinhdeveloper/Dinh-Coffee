@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { Box, Icon, Page, Text, useNavigate, useParams } from "zmp-ui";
 import { ApiError } from "@/services/api";
 import { fetchProductById, Product } from "@/services/products";
-import { cartItemsAtom } from "@/store/cart";
+import { cartCountAtom, cartItemsAtom } from "@/store/cart";
 
 function parsePrice(price: string) {
   return Number(price.replace(/[^\d]/g, ""));
@@ -27,6 +27,7 @@ function ProductDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
   const setCartItems = useSetAtom(cartItemsAtom);
+  const cartCount = useAtomValue(cartCountAtom);
 
   useEffect(() => {
     if (!id) {
@@ -178,16 +179,16 @@ function ProductDetailPage() {
 
           <button
             type="button"
-            aria-label="Yêu thích"
-            onClick={() => setLiked((prev) => !prev)}
-            className="flex h-10 w-10 items-center justify-center rounded-full border-0 bg-white/90 text-red-500 shadow-[0_8px_20px_rgba(0,0,0,0.15)] backdrop-blur-sm transition-transform active:scale-75"
+            aria-label="Giỏ hàng"
+            onClick={() => navigate("/cart")}
+            className="relative flex h-10 w-10 items-center justify-center rounded-full border-0 bg-white/90 text-lg shadow-[0_8px_20px_rgba(0,0,0,0.15)] backdrop-blur-sm transition-transform active:scale-75"
           >
-            <Icon
-              icon={liked ? "zi-heart-solid" : "zi-heart"}
-              size={20}
-              className="transition-transform duration-200"
-              style={{ transform: liked ? "scale(1.15)" : "scale(1)" }}
-            />
+            🛒
+            {cartCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow-[0_2px_6px_rgba(239,68,68,0.5)]">
+                {cartCount > 99 ? "99+" : cartCount}
+              </span>
+            )}
           </button>
         </Box>
       </Box>
@@ -292,6 +293,20 @@ function ProductDetailPage() {
             transform: mounted ? "translateY(0)" : "translateY(100%)",
           }}
         >
+          <button
+            type="button"
+            aria-label="Yêu thích"
+            onClick={() => setLiked((prev) => !prev)}
+            className="flex h-12 w-12 flex-none items-center justify-center rounded-full border border-gray-200 bg-white text-red-500 transition-transform active:scale-90"
+          >
+            <Icon
+              icon={liked ? "zi-heart-solid" : "zi-heart"}
+              size={22}
+              className="transition-transform duration-200"
+              style={{ transform: liked ? "scale(1.15)" : "scale(1)" }}
+            />
+          </button>
+
           <Box className="min-w-0 flex-1">
             <Text size="xSmall" className="text-gray-400">
               Tổng tiền
