@@ -103,6 +103,67 @@ export async function checkout(req: Request, res: Response) {
   }
 }
 
+// Thanh toán tại cửa hàng: nhân viên đưa mã QR chứa số tiền cần trả, mobile
+// quét mã rồi gọi API này để tạo đơn ZaloPay với đúng số tiền đó — không đi
+// qua giỏ hàng/catalog sản phẩm như checkout() ở trên.
+export async function checkoutInStore(req: Request, res: Response) {
+  const body = req.body as { amount?: number };
+  const amount = Math.floor(Number(body.amount));
+
+  if (!amount || amount < 1000) {
+    res.status(400).json({ message: "Số tiền thanh toán không hợp lệ" });
+    return;
+  }
+
+  const appTransId = generateAppTransId();
+
+  try {
+    const zpResult = await createZaloPayOrder({
+      appTransId,
+      amount,
+      description: `Thanh toan tai cua hang BoomBerry ${appTransId}`,
+      items: [],
+    });
+
+    if (zpResult.return_code !== 1 || !zpResult.order_url) {
+      res.status(502).json({
+        message:
+          zpResult.sub_return_message ||
+          zpResult.return_message ||
+          "Không tạo được đơn thanh toán ZaloPay",
+      });
+      return;
+    }
+
+    const order: Order = {
+      id: appTransId,
+      items: [
+        {
+          id: "instore",
+          title: "Thanh toán tại cửa hàng",
+          price: `${amount.toLocaleString("vi-VN")}đ`,
+          quantity: 1,
+        },
+      ],
+      amount,
+      status: "pending",
+      createdAt: Date.now(),
+    };
+
+    orders.set(order.id, order);
+
+    res.json({
+      data: {
+        orderId: order.id,
+        orderUrl: zpResult.order_url,
+        amount: order.amount,
+      },
+    });
+  } catch (err) {
+    res.status(502).json({ message: "Không kết nối được tới ZaloPay" });
+  }
+}
+
 export async function getOrderStatus(req: Request, res: Response) {
   const order = orders.get(req.params.id);
 

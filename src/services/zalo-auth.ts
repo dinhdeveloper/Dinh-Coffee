@@ -1,4 +1,4 @@
-import { getUserInfo, type UserInfo } from "zmp-sdk";
+import { getSetting, getUserInfo, type UserInfo } from "zmp-sdk";
 import { syncUserToBackend } from "@/services/users";
 
 export const ZALO_AUTH_CHANGED_EVENT = "boomberry:zalo-auth-changed";
@@ -52,9 +52,20 @@ const isRunningInZaloMini = () => {
 
 export const requestZaloProfile = async (): Promise<ZaloAuthUser> => {
   try {
+    // Chỉ hiện popup xin quyền nếu người dùng chưa từng cấp quyền userInfo,
+    // tránh việc Zalo hỏi lại xác nhận mỗi lần bấm đăng nhập.
+    let alreadyGranted = false;
+    try {
+      const { authSetting } = await getSetting();
+      alreadyGranted = authSetting["scope.userInfo"] === true;
+    } catch (settingError) {
+      // eslint-disable-next-line no-console
+      console.error("getSetting error:", settingError);
+    }
+
     const { userInfo } = await getUserInfo({
       avatarType: "large",
-      autoRequestPermission: true,
+      autoRequestPermission: !alreadyGranted,
     });
 
     const user = {

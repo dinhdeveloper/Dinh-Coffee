@@ -1,5 +1,6 @@
 import { Avatar, Box, Icon, Text, useNavigate } from "zmp-ui";
 import logo from '@/static/logo.png';
+
 type AppHeaderProps = {
   title?: string;
   subtitle?: string;
@@ -9,7 +10,7 @@ type AppHeaderProps = {
 
 function AppHeader({
   title = "BoomBerry",
-  subtitle = "Thức uống tươi mát & tuyệt vời",
+  subtitle = "Bán câu chuyện cafe mỗi ngày",
   showBack = false,
   showAvatar = true,
 }: AppHeaderProps) {

@@ -13,10 +13,19 @@ export type CheckoutResult = {
   amount: number;
 };
 
+export type OrderLineItem = {
+  id: string;
+  title: string;
+  price: string;
+  quantity: number;
+};
+
 export type Order = {
   id: string;
   amount: number;
   status: OrderStatus;
+  items: OrderLineItem[];
+  createdAt: number;
 };
 
 type CheckoutResponse = { data: CheckoutResult };
@@ -24,6 +33,12 @@ type OrderResponse = { data: Order };
 
 export function checkoutOrder(items: CheckoutItem[]) {
   return apiPost<CheckoutResponse>("/orders", { items }).then(
+    (res) => res.data,
+  );
+}
+
+export function checkoutInStoreOrder(amount: number) {
+  return apiPost<CheckoutResponse>("/orders/instore", { amount }).then(
     (res) => res.data,
   );
 }

@@ -6,10 +6,26 @@ import { fetchProperties, Property } from "@/services/properties";
 import { cartCountAtom } from "@/store/cart";
 import StoreStories from "@/components/store-stories";
 import ProductCard from "@/components/product-card";
+import {
+  getStoredZaloUser,
+  ZALO_AUTH_CHANGED_EVENT,
+  type ZaloAuthUser,
+} from "@/services/zalo-auth";
 
 function HomePage() {
   const navigate = useNavigate();
   const cartCount = useAtomValue(cartCountAtom);
+
+  const [zaloUser, setZaloUser] = useState<ZaloAuthUser | null>(() =>
+    getStoredZaloUser(),
+  );
+
+  useEffect(() => {
+    const handleAuthChange = () => setZaloUser(getStoredZaloUser());
+    window.addEventListener(ZALO_AUTH_CHANGED_EVENT, handleAuthChange);
+    return () =>
+      window.removeEventListener(ZALO_AUTH_CHANGED_EVENT, handleAuthChange);
+  }, []);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -120,11 +136,12 @@ function HomePage() {
           GREETING
       ========================== */}
       <Text className="pt-1 text-lg font-bold">
-        Xin chào! <span className="text-xl">👋</span>
+        {zaloUser ? `Xin chào, ${zaloUser.name}!` : "Xin chào!"}{" "}
+        <span className="text-xl">👋</span>
       </Text>
 
       <Text className="text-base font-normal italic text-gray-700">
-        Rất vui được gặp bạn.
+        {zaloUser ? "Chào bạn đã quay trở lại." : "Rất vui được gặp bạn."}
       </Text>
 
       {/* =========================
@@ -144,7 +161,7 @@ function HomePage() {
         {/* Main card */}
         <Box className="relative min-w-0 flex-1 rounded-2xl border border-white/40 bg-white/10 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.15)] backdrop-blur-xl">
           <Text className="text-lg font-bold leading-tight text-black">
-            Khuyến mãi hôm nay.
+            Câu chuyện cafe hôm nay
           </Text>
 
           <Text className="mt-2 line-clamp-2 pr-9 text-sm leading-5 text-black/80">

@@ -23,4 +23,6 @@ export const env = {
   zmpPayment: {
     privateKey: process.env.ZMP_PAYMENT_PRIVATE_KEY ?? "",
   },
+  // Quy đổi điểm thưởng: số VNĐ tương ứng 1 điểm.
+  pointsPerVnd: Number(process.env.POINTS_PER_VND ?? 10000),
 };

@@ -6,6 +6,7 @@ import { Box, Icon, Page, Text, useNavigate } from "zmp-ui";
 import { CartItem, cartItemsAtom, cartTotalAtom } from "@/store/cart";
 import { ApiError } from "@/services/api";
 import { checkoutOrder, fetchOrderStatus } from "@/services/orders";
+import { addOrderToHistory } from "@/services/order-history";
 
 type CheckoutPhase = "idle" | "creating" | "waiting" | "success" | "failed";
 
@@ -189,10 +190,11 @@ function CartPage() {
       .then((order) => {
         if (order.status === "paid") {
           setItems([]);
+          addOrderToHistory(orderId);
           setPhase("success");
           setTimeout(() => {
             setPhase("idle");
-            navigate("/home");
+            navigate(`/order/${orderId}`);
           }, 1600);
           return;
         }

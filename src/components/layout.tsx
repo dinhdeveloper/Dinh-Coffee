@@ -18,6 +18,9 @@ import ProductDetailPage from "@/pages/product-detail";
 import CategoryProductsPage from "@/pages/category-products";
 import CartPage from "@/pages/cart";
 import SuggestionsPage from "@/pages/suggestions";
+import OrdersPage from "@/pages/orders";
+import OrderDetailPage from "@/pages/order-detail";
+import ScanPayPage from "@/pages/scan-pay";
 
 const SUB_PAGE_PREFIXES = [
   "/product/",
@@ -25,6 +28,9 @@ const SUB_PAGE_PREFIXES = [
   "/cart",
   "/suggestions",
   "/story",
+  "/orders",
+  "/order/",
+  "/scan-pay",
 ];
 
 const AppHeaderGate = () => {
@@ -43,7 +49,10 @@ const NavigationGate = () => {
   const hideNavigation =
     location.pathname.startsWith("/category/") ||
     location.pathname.startsWith("/cart") ||
-    location.pathname.startsWith("/suggestions");
+    location.pathname.startsWith("/suggestions") ||
+    location.pathname.startsWith("/orders") ||
+    location.pathname.startsWith("/order/") ||
+    location.pathname.startsWith("/scan-pay");
 
   if (hideNavigation) return null;
 
@@ -74,6 +83,9 @@ const Layout = () => {
               <Route path="/category/:name" element={<CategoryProductsPage />} />
               <Route path="/cart" element={<CartPage />} />
               <Route path="/suggestions" element={<SuggestionsPage />} />
+              <Route path="/orders" element={<OrdersPage />} />
+              <Route path="/order/:id" element={<OrderDetailPage />} />
+              <Route path="/scan-pay" element={<ScanPayPage />} />
             </AnimationRoutes>
           </Box>
           <NavigationGate />

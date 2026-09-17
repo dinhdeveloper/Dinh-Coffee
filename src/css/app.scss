@@ -28,7 +28,7 @@ body,
 .app-bottom-navigation {
   position: fixed;
   left: 50%;
-  bottom: calc(var(--zaui-safe-area-inset-bottom, 0px) + 14px);
+  bottom: calc(var(--zaui-safe-area-inset-bottom, 0px) + 4px);
   z-index: 50;
   display: flex;
   width: min(calc(100vw - 24px), 340px);

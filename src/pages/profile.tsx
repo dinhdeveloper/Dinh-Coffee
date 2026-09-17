@@ -86,7 +86,14 @@ function ProfilePage() {
       bg: "#FFF0F5",
       label: "Đơn hàng của tôi",
       description: "Theo dõi đơn đang giao & lịch sử mua hàng",
-      onClick: comingSoon,
+      onClick: () => navigate("/orders"),
+    },
+    {
+      icon: "📷",
+      bg: "#EAF6EC",
+      label: "Thanh toán tại cửa hàng",
+      description: "Quét mã QR số tiền và thanh toán bằng ZaloPay",
+      onClick: () => navigate("/scan-pay"),
     },
     {
       icon: "📍",
@@ -229,7 +236,7 @@ function ProfilePage() {
         size="xxSmall"
         className="mb-2 mt-2 flex-none text-center text-gray-400"
       >
-        BoomBerry · Mỗi ngày 1 câu chuyện ☕
+        BoomBerry · Mỗi ngày 1 ly cafe ngon ☕
       </Text>
     </Page>
   );

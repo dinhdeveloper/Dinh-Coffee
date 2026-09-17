@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   checkout,
+  checkoutInStore,
   createOrderMac,
   getOrderStatus,
   linkCheckoutOrder,
@@ -9,6 +10,7 @@ import {
 const router = Router();
 
 router.post("/", checkout);
+router.post("/instore", checkoutInStore);
 router.get("/:id/status", getOrderStatus);
 router.post("/mac", createOrderMac);
 router.post("/:id/link", linkCheckoutOrder);
