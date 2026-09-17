@@ -4,6 +4,7 @@ import { Avatar, Box, Icon, Page, Text, useNavigate, useSnackbar } from "zmp-ui"
 import {
   getStoredZaloUser,
   logoutZaloProfile,
+  requestZaloPhoneNumber,
   requestZaloProfile,
   ZALO_AUTH_CHANGED_EVENT,
   type ZaloAuthUser,
@@ -25,7 +26,9 @@ function ProfilePage() {
     getStoredZaloUser(),
   );
   const [points, setPoints] = useState<number | null>(null);
+  const [phone, setPhone] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAddingPhone, setIsAddingPhone] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -39,6 +42,7 @@ function ProfilePage() {
   useEffect(() => {
     if (!user) {
       setPoints(null);
+      setPhone(null);
       return;
     }
 
@@ -46,7 +50,10 @@ function ProfilePage() {
 
     fetchUser(user.id)
       .then((data) => {
-        if (!cancelled) setPoints(data.points);
+        if (!cancelled) {
+          setPoints(data.points);
+          setPhone(data.phone ?? null);
+        }
       })
       .catch(() => {
         if (!cancelled) setPoints(null);
@@ -92,6 +99,23 @@ function ProfilePage() {
       );
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleAddPhone = async () => {
+    if (!user || isAddingPhone) return;
+    setIsAddingPhone(true);
+
+    try {
+      const nextPhone = await requestZaloPhoneNumber(user.id);
+      setPhone(nextPhone);
+      showMessage("Đã cập nhật số điện thoại.", "success");
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error("Không lấy được số điện thoại:", error);
+      showMessage("Không thể lấy số điện thoại, vui lòng thử lại.", "error");
+    } finally {
+      setIsAddingPhone(false);
     }
   };
 
@@ -178,6 +202,22 @@ function ProfilePage() {
                 ? "Đã đăng nhập bằng Zalo"
                 : "Đăng nhập để lưu đơn hàng & ưu đãi của bạn"}
             </Text>
+
+            {user &&
+              (phone ? (
+                <Text size="small" className="mt-0.5 truncate text-black/60">
+                  {phone}
+                </Text>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleAddPhone}
+                  disabled={isAddingPhone}
+                  className="mt-0.5 border-0 bg-transparent p-0 text-left text-sm font-medium text-blue-600 active:opacity-60 disabled:opacity-60"
+                >
+                  {isAddingPhone ? "Đang lấy số..." : "+ Thêm số điện thoại"}
+                </button>
+              ))}
           </Box>
         </Box>
 

@@ -4,6 +4,7 @@ export type SyncedUser = {
   id: string;
   name: string;
   avatar: string;
+  phone?: string;
   firstLoginAt: number;
   lastLoginAt: number;
   points: number;
@@ -23,4 +24,16 @@ export function syncUserToBackend(user: {
 
 export function fetchUser(id: string) {
   return apiGet<SyncUserResponse>(`/users/${id}`).then((res) => res.data);
+}
+
+export function updatePhoneOnBackend(
+  userId: string,
+  accessToken: string,
+  code: string,
+) {
+  return apiPost<SyncUserResponse>("/users/phone", {
+    userId,
+    accessToken,
+    code,
+  }).then((res) => res.data);
 }

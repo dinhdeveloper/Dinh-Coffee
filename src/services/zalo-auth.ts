@@ -1,5 +1,5 @@
-import { getSetting, getUserInfo, type UserInfo } from "zmp-sdk";
-import { syncUserToBackend } from "@/services/users";
+import { getAccessToken, getPhoneNumber, getSetting, getUserInfo, type UserInfo } from "zmp-sdk";
+import { syncUserToBackend, updatePhoneOnBackend } from "@/services/users";
 
 export const ZALO_AUTH_CHANGED_EVENT = "boomberry:zalo-auth-changed";
 const ZALO_USER_KEY = "boomberry.zaloUser";
@@ -120,6 +120,28 @@ export const requestZaloProfile = async (): Promise<ZaloAuthUser> => {
     // Rethrow so callers can handle/display friendly messages
     throw error;
   }
+};
+
+// Xin số điện thoại người dùng (permission popup riêng, khác userInfo) và
+// đổi token trả về thành số điện thoại thật ở backend (cần secret key, xem
+// backend/src/lib/zalo-graph.ts). Trả về số điện thoại nếu thành công.
+export const requestZaloPhoneNumber = async (userId: string): Promise<string> => {
+  const [{ token: code }, accessToken] = await Promise.all([
+    getPhoneNumber(),
+    getAccessToken(),
+  ]);
+
+  if (!code) {
+    throw new Error("Không lấy được token số điện thoại từ Zalo");
+  }
+
+  const user = await updatePhoneOnBackend(userId, accessToken, code);
+
+  if (!user.phone) {
+    throw new Error("Không lấy được số điện thoại");
+  }
+
+  return user.phone;
 };
 
 export const logoutZaloProfile = () => {

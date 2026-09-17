@@ -5,6 +5,7 @@ function toUser(row: {
   id: string;
   name: string;
   avatar: string;
+  phone: string | null;
   points: number;
   firstLoginAt: Date;
   lastLoginAt: Date;
@@ -13,6 +14,7 @@ function toUser(row: {
     id: row.id,
     name: row.name,
     avatar: row.avatar,
+    phone: row.phone ?? undefined,
     points: row.points,
     firstLoginAt: row.firstLoginAt.getTime(),
     lastLoginAt: row.lastLoginAt.getTime(),
@@ -45,6 +47,15 @@ export async function upsertUser(input: {
       avatar: input.avatar,
       lastLoginAt: now,
     },
+  });
+
+  return toUser(row);
+}
+
+export async function setPhone(userId: string, phone: string): Promise<User> {
+  const row = await prisma.user.update({
+    where: { id: userId },
+    data: { phone },
   });
 
   return toUser(row);
