@@ -3,8 +3,9 @@ import { createPortal } from "react-dom";
 import { useAtomValue, useSetAtom } from "jotai";
 import { Box, Icon, Page, Text, useNavigate, useParams } from "zmp-ui";
 import { ApiError } from "@/services/api";
-import { fetchProductById, Product } from "@/services/products";
+import { fetchProductById, fetchProducts, Product } from "@/services/products";
 import { cartCountAtom, cartItemsAtom } from "@/store/cart";
+import ProductCard from "@/components/product-card";
 
 function parsePrice(price: string) {
   return Number(price.replace(/[^\d]/g, ""));
@@ -26,6 +27,8 @@ function ProductDetailPage() {
   const [liked, setLiked] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
+  const [related, setRelated] = useState<Product[]>([]);
+  const [relatedLoading, setRelatedLoading] = useState(true);
   const setCartItems = useSetAtom(cartItemsAtom);
   const cartCount = useAtomValue(cartCountAtom);
 
@@ -48,6 +51,25 @@ function ProductDetailPage() {
       .catch((err) => {
         if (cancelled) return;
         setStatus(err instanceof ApiError && err.status === 404 ? "not-found" : "error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setRelatedLoading(true);
+
+    fetchProducts()
+      .then((data) => {
+        if (cancelled) return;
+        setRelated(data.filter((item) => item.id !== id).slice(0, 8));
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setRelatedLoading(false);
       });
 
     return () => {
@@ -165,7 +187,7 @@ function ProductDetailPage() {
         <Box
           className="absolute inset-x-0 top-0 flex items-center justify-between px-4"
           style={{
-            paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px) + 12px)",
+            paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px) + 20px)",
           }}
         >
           <button
@@ -277,6 +299,45 @@ function ProductDetailPage() {
             </button>
           </Box>
         </Box>
+
+        {/* Gợi ý món khác */}
+        {(relatedLoading || related.length > 0) && (
+          <Box
+            className="mt-6 transition-all duration-500 ease-out"
+            style={{
+              opacity: mounted ? 1 : 0,
+              transform: mounted ? "translateY(0)" : "translateY(8px)",
+              transitionDelay: "200ms",
+            }}
+          >
+            <Text.Title size="normal" className="font-bold text-[#1a1a1a]">
+              Có thể bạn cũng thích
+            </Text.Title>
+
+            <Box
+              className="mt-3 flex gap-4 overflow-x-auto pb-6 pr-4"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+            >
+              {relatedLoading
+                ? [0, 1, 2].map((i) => (
+                    <Box
+                      key={i}
+                      className="h-52 w-40 flex-none animate-pulse rounded-2xl bg-gray-200"
+                    />
+                  ))
+                : related.map((item) => (
+                    <ProductCard
+                      key={item.id}
+                      product={item}
+                      onClick={() =>
+                        navigate(`/product/${item.id}`, { replace: true })
+                      }
+                      className="w-40 flex-none"
+                    />
+                  ))}
+            </Box>
+          </Box>
+        )}
       </Box>
 
       {/* =========================

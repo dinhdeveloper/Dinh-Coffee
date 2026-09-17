@@ -49,7 +49,7 @@ function CategoryProductsPage() {
       <Box
         className="flex items-center gap-3"
         style={{
-          paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px) + 12px)",
+          paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px) + 20px)",
         }}
       >
         <button

@@ -303,7 +303,7 @@ function HomePage() {
           </Box>
         ) : (
           <Box
-            className="mt-3 flex gap-4 overflow-x-auto pb-6"
+            className="mt-3 flex gap-4 overflow-x-auto pb-6 pr-4"
             style={{
               scrollbarWidth: "none",
               msOverflowStyle: "none",
