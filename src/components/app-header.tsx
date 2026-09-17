@@ -16,7 +16,7 @@ type AppHeaderProps = {
 
 function AppHeader({
   title = "BoomBerry",
-  subtitle = "Bán câu chuyện cafe mỗi ngày",
+  subtitle = "Một ly cà phê, một câu chuyện.",
   showBack = false,
   showAvatar = true,
 }: AppHeaderProps) {
@@ -36,7 +36,7 @@ function AppHeader({
     <Box
       className="flex flex-row items-center gap-3 bg-transparent px-4 pb-2 pr-24"
       style={{
-        paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px) + 2px)",
+        paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px))",
       }}
     >
       {showBack && (

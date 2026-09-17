@@ -7,11 +7,14 @@ import { CartItem, cartItemsAtom, cartTotalAtom } from "@/store/cart";
 import { ApiError } from "@/services/api";
 import { checkoutOrder, fetchOrderStatus } from "@/services/orders";
 import { addOrderToHistory } from "@/services/order-history";
-import { getStoredZaloUser } from "@/services/zalo-auth";
+import { getStoredZaloUser, requestZaloProfile } from "@/services/zalo-auth";
 import {
+  AddressInput,
   DeliveryAddress,
-  getStoredAddress,
-  saveAddress,
+  createAddress,
+  fetchAddresses,
+  getDefaultAddress,
+  setDefaultAddress,
 } from "@/services/address";
 
 type CheckoutPhase =
@@ -163,9 +166,21 @@ function CartPage() {
   const [mounted, setMounted] = useState(false);
   const [phase, setPhase] = useState<CheckoutPhase>("idle");
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
-  const [address, setAddress] = useState<DeliveryAddress>(
-    () =>
-      getStoredAddress() ?? { receiver: "", phone: "", detail: "", note: "" },
+  const [addressMode, setAddressMode] = useState<"login" | "list" | "form">(
+    "login",
+  );
+  const [addressLoading, setAddressLoading] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [addresses, setAddresses] = useState<DeliveryAddress[]>([]);
+  const [chosenAddressId, setChosenAddressId] = useState<string | null>(null);
+  const [addressForm, setAddressForm] = useState<AddressInput>({
+    receiver: "",
+    phone: "",
+    detail: "",
+    note: "",
+  });
+  const [checkoutAddress, setCheckoutAddress] = useState<DeliveryAddress | null>(
+    null,
   );
   const [addressError, setAddressError] = useState<string | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -243,27 +258,102 @@ function CartPage() {
       });
   };
 
+  const loadAddresses = async (userId: string) => {
+    setAddressLoading(true);
+    try {
+      const list = await fetchAddresses(userId);
+      setAddresses(list);
+      setChosenAddressId(getDefaultAddress(list)?.id ?? null);
+      setAddressForm({ receiver: "", phone: "", detail: "", note: "" });
+      setAddressMode(list.length === 0 ? "form" : "list");
+    } catch {
+      setAddressError("Không tải được danh sách địa chỉ, vui lòng thử lại");
+    } finally {
+      setAddressLoading(false);
+    }
+  };
+
   const handleOpenAddress = () => {
     setCheckoutError(null);
     setAddressError(null);
     setPhase("address");
+
+    const user = getStoredZaloUser();
+    if (!user) {
+      setAddressMode("login");
+      return;
+    }
+
+    loadAddresses(user.id);
   };
 
-  const handleConfirmAddress = () => {
+  const handleLoginForAddress = async () => {
+    if (isLoggingIn) return;
+    setIsLoggingIn(true);
+    setAddressError(null);
+
+    try {
+      const user = await requestZaloProfile();
+      await loadAddresses(user.id);
+    } catch {
+      setAddressError("Không thể đăng nhập, vui lòng thử lại");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleUseChosenAddress = async () => {
+    const user = getStoredZaloUser();
+    const chosen = addresses.find((a) => a.id === chosenAddressId);
+    if (!user || !chosen) {
+      setAddressError("Vui lòng chọn một địa chỉ");
+      return;
+    }
+
+    if (!chosen.isDefault) {
+      setDefaultAddress(user.id, chosen.id).catch(() => {});
+    }
+
+    handleCheckout(chosen);
+  };
+
+  const handleSaveNewAddress = async () => {
+    const user = getStoredZaloUser();
+    if (!user) {
+      setAddressMode("login");
+      return;
+    }
+
     if (
-      !address.receiver.trim() ||
-      !address.phone.trim() ||
-      !address.detail.trim()
+      !addressForm.receiver.trim() ||
+      !addressForm.phone.trim() ||
+      !addressForm.detail.trim()
     ) {
       setAddressError("Vui lòng nhập đầy đủ tên, số điện thoại và địa chỉ");
       return;
     }
 
-    saveAddress(address);
-    handleCheckout();
+    try {
+      const created = await createAddress(user.id, addressForm);
+
+      // Chuyển về chế độ danh sách với địa chỉ vừa tạo được chọn sẵn — nếu
+      // bước thanh toán bên dưới thất bại và người dùng bấm thử lại, sẽ dùng
+      // lại đúng địa chỉ này (qua handleUseChosenAddress) thay vì tạo trùng.
+      setAddresses((prev) => [...prev, created]);
+      setChosenAddressId(created.id);
+      setAddressMode("list");
+
+      handleCheckout(created);
+    } catch {
+      setAddressError("Không lưu được địa chỉ, vui lòng thử lại");
+    }
   };
 
-  const handleCheckout = async () => {
+  const handleCheckout = async (addressOverride?: DeliveryAddress) => {
+    const address = addressOverride ?? checkoutAddress;
+    if (!address) return;
+
+    setCheckoutAddress(address);
     setCheckoutError(null);
     setPhase("creating");
     clearTimeout(pollTimer.current);
@@ -334,7 +424,7 @@ function CartPage() {
       <Box
         className="flex items-center gap-3"
         style={{
-          paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px) + 10px)",
+          paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px))",
         }}
       >
         <button
@@ -462,76 +552,200 @@ function CartPage() {
         )}
 
       {/* =========================
-          ADDRESS FORM OVERLAY
+          ADDRESS OVERLAY — chọn từ danh sách hoặc thêm mới
       ========================== */}
       {phase === "address" &&
         createPortal(
           <Box className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/50">
             <Box
-              className="w-full max-w-md rounded-t-3xl bg-white p-5"
+              className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-5"
               style={{
                 paddingBottom: "calc(20px + env(safe-area-inset-bottom))",
               }}
             >
-              <Text.Title size="normal" className="font-bold text-[#1a1a1a]">
-                Thông tin giao hàng
-              </Text.Title>
-              <Text size="small" className="mt-1 text-gray-500">
-                Nhập địa chỉ nhận hàng trước khi thanh toán
-              </Text>
+              {addressMode === "login" ? (
+                <Box className="flex flex-col items-center gap-3 py-6 text-center">
+                  <Box className="flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
+                    <Icon icon="zi-location" size={26} className="text-gray-400" />
+                  </Box>
+                  <Text.Title size="normal" className="font-bold text-[#1a1a1a]">
+                    Đăng nhập để chọn địa chỉ
+                  </Text.Title>
+                  <Text size="small" className="text-gray-500">
+                    Địa chỉ giao hàng được lưu theo tài khoản Zalo của bạn
+                  </Text>
 
-              <Box className="mt-4 flex flex-col gap-3">
-                <input
-                  type="text"
-                  placeholder="Họ và tên người nhận"
-                  value={address.receiver}
-                  onChange={(e) =>
-                    setAddress((prev) => ({ ...prev, receiver: e.target.value }))
-                  }
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
-                />
-                <input
-                  type="tel"
-                  placeholder="Số điện thoại"
-                  value={address.phone}
-                  onChange={(e) =>
-                    setAddress((prev) => ({ ...prev, phone: e.target.value }))
-                  }
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
-                />
-                <input
-                  type="text"
-                  placeholder="Địa chỉ nhận hàng (số nhà, đường, phường/xã...)"
-                  value={address.detail}
-                  onChange={(e) =>
-                    setAddress((prev) => ({ ...prev, detail: e.target.value }))
-                  }
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
-                />
-                <input
-                  type="text"
-                  placeholder="Ghi chú (không bắt buộc)"
-                  value={address.note}
-                  onChange={(e) =>
-                    setAddress((prev) => ({ ...prev, note: e.target.value }))
-                  }
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
-                />
-              </Box>
+                  {addressError && (
+                    <Text size="small" className="text-red-500">
+                      {addressError}
+                    </Text>
+                  )}
 
-              {(addressError || checkoutError) && (
-                <Text size="small" className="mt-3 text-red-500">
-                  {addressError || checkoutError}
-                </Text>
+                  <button
+                    type="button"
+                    onClick={handleLoginForAddress}
+                    disabled={isLoggingIn}
+                    className="mt-2 w-full rounded-full border-0 bg-[#1a1a1a] py-3 text-sm font-semibold text-white active:scale-95 disabled:opacity-80"
+                  >
+                    {isLoggingIn ? "Đang đăng nhập..." : "Đăng nhập với Zalo"}
+                  </button>
+                </Box>
+              ) : addressLoading ? (
+                <Box className="flex flex-col items-center gap-3 py-10">
+                  <span className="h-7 w-7 animate-spin rounded-full border-2 border-gray-200 border-t-[#1a1a1a]" />
+                  <Text size="small" className="text-gray-400">
+                    Đang tải địa chỉ...
+                  </Text>
+                </Box>
+              ) : addressMode === "list" ? (
+                <>
+                  <Text.Title size="normal" className="font-bold text-[#1a1a1a]">
+                    Chọn địa chỉ giao hàng
+                  </Text.Title>
+
+                  <Box className="mt-4 flex flex-col gap-2.5">
+                    {addresses.map((item) => {
+                      const isSelected = item.id === chosenAddressId;
+                      return (
+                        <Box
+                          key={item.id}
+                          onClick={() => setChosenAddressId(item.id)}
+                          className={`cursor-pointer rounded-2xl border p-3 transition-colors ${
+                            isSelected
+                              ? "border-[#1a1a1a] bg-white shadow-[0_8px_20px_rgba(0,0,0,0.08)]"
+                              : "border-gray-200 bg-white"
+                          }`}
+                        >
+                          <Box className="flex items-start gap-3">
+                            <Box
+                              className={`mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full border-2 ${
+                                isSelected
+                                  ? "border-[#1a1a1a] bg-[#1a1a1a]"
+                                  : "border-gray-300"
+                              }`}
+                            >
+                              {isSelected && (
+                                <Icon icon="zi-check" size={12} className="text-white" />
+                              )}
+                            </Box>
+                            <Box className="min-w-0 flex-1">
+                              <Text size="small" className="font-bold text-[#1a1a1a]">
+                                {item.receiver} · {item.phone}
+                              </Text>
+                              <Text size="small" className="mt-0.5 text-gray-500">
+                                {item.detail}
+                              </Text>
+                            </Box>
+                          </Box>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddressError(null);
+                      setAddressForm({ receiver: "", phone: "", detail: "", note: "" });
+                      setAddressMode("form");
+                    }}
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-full border border-dashed border-gray-300 bg-transparent py-3 text-sm font-medium text-gray-500 active:opacity-60"
+                  >
+                    <Icon icon="zi-plus" size={16} />
+                    Thêm địa chỉ mới
+                  </button>
+
+                  {(addressError || checkoutError) && (
+                    <Text size="small" className="mt-3 text-red-500">
+                      {addressError || checkoutError}
+                    </Text>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleUseChosenAddress}
+                    className="mt-4 w-full rounded-full border-0 bg-[#1a1a1a] py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98]"
+                  >
+                    Dùng địa chỉ này
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Text.Title size="normal" className="font-bold text-[#1a1a1a]">
+                    Thông tin giao hàng
+                  </Text.Title>
+                  <Text size="small" className="mt-1 text-gray-500">
+                    Nhập địa chỉ nhận hàng trước khi thanh toán
+                  </Text>
+
+                  <Box className="mt-4 flex flex-col gap-3">
+                    <input
+                      type="text"
+                      placeholder="Họ và tên người nhận"
+                      value={addressForm.receiver}
+                      onChange={(e) =>
+                        setAddressForm((prev) => ({ ...prev, receiver: e.target.value }))
+                      }
+                      className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
+                    />
+                    <input
+                      type="tel"
+                      placeholder="Số điện thoại"
+                      value={addressForm.phone}
+                      onChange={(e) =>
+                        setAddressForm((prev) => ({ ...prev, phone: e.target.value }))
+                      }
+                      className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Địa chỉ nhận hàng (số nhà, đường, phường/xã...)"
+                      value={addressForm.detail}
+                      onChange={(e) =>
+                        setAddressForm((prev) => ({ ...prev, detail: e.target.value }))
+                      }
+                      className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Ghi chú (không bắt buộc)"
+                      value={addressForm.note}
+                      onChange={(e) =>
+                        setAddressForm((prev) => ({ ...prev, note: e.target.value }))
+                      }
+                      className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
+                    />
+                  </Box>
+
+                  {(addressError || checkoutError) && (
+                    <Text size="small" className="mt-3 text-red-500">
+                      {addressError || checkoutError}
+                    </Text>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleSaveNewAddress}
+                    className="mt-4 w-full rounded-full border-0 bg-[#1a1a1a] py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98]"
+                  >
+                    Tiếp tục thanh toán
+                  </button>
+
+                  {addresses.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAddressError(null);
+                        setAddressMode("list");
+                      }}
+                      className="mt-2 w-full rounded-full border-0 bg-transparent py-2.5 text-sm font-medium text-gray-500 active:opacity-60"
+                    >
+                      Quay lại danh sách địa chỉ
+                    </button>
+                  )}
+                </>
               )}
 
-              <button
-                type="button"
-                onClick={handleConfirmAddress}
-                className="mt-4 w-full rounded-full border-0 bg-[#1a1a1a] py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98]"
-              >
-                Tiếp tục thanh toán
-              </button>
               <button
                 type="button"
                 onClick={() => setPhase("idle")}
@@ -606,7 +820,7 @@ function CartPage() {
 
                   <button
                     type="button"
-                    onClick={handleCheckout}
+                    onClick={() => handleCheckout()}
                     className="mt-5 w-full rounded-full border-0 bg-[#1a1a1a] py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98]"
                   >
                     Thử lại

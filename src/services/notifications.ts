@@ -15,10 +15,14 @@ export type Notification = {
 type NotificationsResponse = { data: Notification[] };
 type NotificationResponse = { data: Notification };
 
-export function fetchNotifications() {
-  return apiGet<NotificationsResponse>("/notifications").then(
-    (res) => res.data,
-  );
+function withUserId(path: string, userId?: string) {
+  return userId ? `${path}?userId=${encodeURIComponent(userId)}` : path;
+}
+
+export function fetchNotifications(userId?: string) {
+  return apiGet<NotificationsResponse>(
+    withUserId("/notifications", userId),
+  ).then((res) => res.data);
 }
 
 export function markNotificationRead(id: string) {
@@ -27,10 +31,10 @@ export function markNotificationRead(id: string) {
   );
 }
 
-export function markAllNotificationsRead() {
-  return apiPatch<NotificationsResponse>("/notifications/read-all").then(
-    (res) => res.data,
-  );
+export function markAllNotificationsRead(userId?: string) {
+  return apiPatch<NotificationsResponse>(
+    withUserId("/notifications/read-all", userId),
+  ).then((res) => res.data);
 }
 
 export function deleteNotificationApi(id: string) {

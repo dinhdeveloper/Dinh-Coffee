@@ -50,6 +50,11 @@ const isRunningInZaloMini = () => {
   return false;
 };
 
+const isAuthRequiredError = (error: unknown) => {
+  const code = (error as { code?: number } | undefined)?.code;
+  return code === -1401;
+};
+
 export const requestZaloProfile = async (): Promise<ZaloAuthUser> => {
   try {
     // Chỉ hiện popup xin quyền nếu người dùng chưa từng cấp quyền userInfo,
@@ -63,10 +68,25 @@ export const requestZaloProfile = async (): Promise<ZaloAuthUser> => {
       console.error("getSetting error:", settingError);
     }
 
-    const { userInfo } = await getUserInfo({
-      avatarType: "large",
-      autoRequestPermission: !alreadyGranted,
-    });
+    let userInfo: UserInfo;
+    try {
+      ({ userInfo } = await getUserInfo({
+        avatarType: "large",
+        autoRequestPermission: !alreadyGranted,
+      }));
+    } catch (silentError) {
+      // Phiên đăng nhập Zalo có thể đã hết hạn dù trước đó đã cấp quyền
+      // (lỗi -1401 "User Authentication Required") — thử lại một lần với
+      // autoRequestPermission để Zalo mở lại luồng xác thực thay vì bỏ cuộc.
+      if (alreadyGranted && isAuthRequiredError(silentError)) {
+        ({ userInfo } = await getUserInfo({
+          avatarType: "large",
+          autoRequestPermission: true,
+        }));
+      } else {
+        throw silentError;
+      }
+    }
 
     const user = {
       id: userInfo.id,

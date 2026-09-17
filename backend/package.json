@@ -9,7 +9,8 @@
     "postinstall": "prisma generate",
     "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
     "start": "prisma db push --skip-generate --accept-data-loss && node dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",

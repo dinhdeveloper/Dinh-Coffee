@@ -4,6 +4,16 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { Box, Icon, Page, Text, useNavigate, useParams } from "zmp-ui";
 import { ApiError } from "@/services/api";
 import { fetchProductById, fetchProducts, Product } from "@/services/products";
+import {
+  createProductReview,
+  fetchProductReviews,
+  Review,
+  ReviewSummary,
+} from "@/services/reviews";
+import {
+  getStoredZaloUser,
+  requestZaloProfile,
+} from "@/services/zalo-auth";
 import { cartCountAtom, cartItemsAtom } from "@/store/cart";
 import ProductCard from "@/components/product-card";
 
@@ -29,6 +39,14 @@ function ProductDetailPage() {
   const [added, setAdded] = useState(false);
   const [related, setRelated] = useState<Product[]>([]);
   const [relatedLoading, setRelatedLoading] = useState(true);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewSummary, setReviewSummary] = useState<ReviewSummary | null>(null);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const setCartItems = useSetAtom(cartItemsAtom);
   const cartCount = useAtomValue(cartCountAtom);
 
@@ -76,6 +94,65 @@ function ProductDetailPage() {
       cancelled = true;
     };
   }, [id]);
+
+  const loadReviews = () => {
+    if (!id) return;
+    setReviewsLoading(true);
+
+    fetchProductReviews(id)
+      .then((data) => {
+        setReviews(data.reviews);
+        setReviewSummary(data.summary);
+      })
+      .catch(() => {})
+      .finally(() => setReviewsLoading(false));
+  };
+
+  useEffect(() => {
+    loadReviews();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  const handleSubmitReview = async () => {
+    if (!id || submittingReview) return;
+
+    const user = getStoredZaloUser();
+    if (!user) {
+      try {
+        await requestZaloProfile();
+      } catch {
+        setReviewError("Vui lòng đăng nhập Zalo để đánh giá");
+        return;
+      }
+    }
+
+    const currentUser = getStoredZaloUser();
+    if (!currentUser) {
+      setReviewError("Vui lòng đăng nhập Zalo để đánh giá");
+      return;
+    }
+
+    setSubmittingReview(true);
+    setReviewError(null);
+
+    try {
+      await createProductReview(id, {
+        userId: currentUser.id,
+        userName: currentUser.name,
+        rating: reviewRating,
+        comment: reviewComment.trim() || undefined,
+      });
+
+      setShowReviewForm(false);
+      setReviewComment("");
+      setReviewRating(5);
+      loadReviews();
+    } catch {
+      setReviewError("Không gửi được đánh giá, vui lòng thử lại");
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   useEffect(() => {
     if (status !== "ready") return;
@@ -187,7 +264,7 @@ function ProductDetailPage() {
         <Box
           className="absolute inset-x-0 top-0 flex items-center justify-between px-4"
           style={{
-            paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px) + 10px)",
+            paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px))",
           }}
         >
           <button
@@ -239,6 +316,12 @@ function ProductDetailPage() {
           </Box>
         </Box>
 
+        {product.purchaseCount > 0 && (
+          <Text size="xSmall" className="mt-1 text-gray-400">
+            Đã bán {product.purchaseCount.toLocaleString("vi-VN")}
+          </Text>
+        )}
+
         <Text
           className="mt-3 leading-6 text-gray-500 transition-all duration-500 ease-out"
           style={{
@@ -284,6 +367,76 @@ function ProductDetailPage() {
               <Text className="font-bold leading-none">+</Text>
             </button>
           </Box>
+        </Box>
+
+        {/* =========================
+            ĐÁNH GIÁ
+        ========================== */}
+        <Box
+          className="mt-6 transition-all duration-500 ease-out"
+          style={{
+            opacity: mounted ? 1 : 0,
+            transform: mounted ? "translateY(0)" : "translateY(8px)",
+            transitionDelay: "170ms",
+          }}
+        >
+          <Box className="flex items-center justify-between">
+            <Text.Title size="normal" className="font-bold text-[#1a1a1a]">
+              Đánh giá
+              {reviewSummary && reviewSummary.count > 0 && (
+                <Text
+                  size="small"
+                  className="ml-1 inline font-normal text-gray-400"
+                >
+                  ({reviewSummary.count})
+                </Text>
+              )}
+            </Text.Title>
+
+            <button
+              type="button"
+              onClick={() => {
+                setReviewError(null);
+                setShowReviewForm(true);
+              }}
+              className="rounded-full border-0 bg-gray-100 px-3 py-1.5 text-xs font-semibold text-[#2f2f2f] active:scale-95"
+            >
+              Viết đánh giá
+            </button>
+          </Box>
+
+          {reviewsLoading ? (
+            <Box className="mt-3 flex flex-col gap-2">
+              {[0, 1].map((i) => (
+                <Box key={i} className="h-14 animate-pulse rounded-xl bg-gray-100" />
+              ))}
+            </Box>
+          ) : reviews.length === 0 ? (
+            <Text size="small" className="mt-3 text-gray-400">
+              Chưa có đánh giá nào — hãy là người đầu tiên!
+            </Text>
+          ) : (
+            <Box className="mt-3 flex flex-col gap-3">
+              {reviews.map((review) => (
+                <Box key={review.id} className="rounded-xl bg-gray-50 p-3">
+                  <Box className="flex items-center justify-between">
+                    <Text size="small" className="font-semibold text-[#1a1a1a]">
+                      {review.userName}
+                    </Text>
+                    <Text size="xSmall" className="text-amber-500">
+                      {"★".repeat(review.rating)}
+                      {"☆".repeat(5 - review.rating)}
+                    </Text>
+                  </Box>
+                  {review.comment && (
+                    <Text size="small" className="mt-1 text-gray-600">
+                      {review.comment}
+                    </Text>
+                  )}
+                </Box>
+              ))}
+            </Box>
+          )}
         </Box>
 
         {/* Gợi ý món khác */}
@@ -407,6 +560,70 @@ function ProductDetailPage() {
         </Box>,
         document.body,
       )}
+
+      {/* =========================
+          REVIEW FORM OVERLAY
+      ========================== */}
+      {showReviewForm &&
+        createPortal(
+          <Box className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/50">
+            <Box
+              className="w-full max-w-md rounded-t-3xl bg-white p-5"
+              style={{
+                paddingBottom: "calc(20px + env(safe-area-inset-bottom))",
+              }}
+            >
+              <Text.Title size="normal" className="font-bold text-[#1a1a1a]">
+                Đánh giá {product.title}
+              </Text.Title>
+
+              <Box className="mt-4 flex items-center justify-center gap-1.5">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    aria-label={`${star} sao`}
+                    onClick={() => setReviewRating(star)}
+                    className="border-0 bg-transparent p-1 text-2xl leading-none active:scale-90"
+                  >
+                    {star <= reviewRating ? "★" : "☆"}
+                  </button>
+                ))}
+              </Box>
+
+              <textarea
+                placeholder="Chia sẻ cảm nhận của bạn (không bắt buộc)"
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+                rows={3}
+                className="mt-4 w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
+              />
+
+              {reviewError && (
+                <Text size="small" className="mt-3 text-red-500">
+                  {reviewError}
+                </Text>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSubmitReview}
+                disabled={submittingReview}
+                className="mt-4 w-full rounded-full border-0 bg-[#1a1a1a] py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98] disabled:opacity-80"
+              >
+                {submittingReview ? "Đang gửi..." : "Gửi đánh giá"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowReviewForm(false)}
+                className="mt-2 w-full rounded-full border-0 bg-transparent py-2.5 text-sm font-medium text-gray-400 active:opacity-60"
+              >
+                Huỷ
+              </button>
+            </Box>
+          </Box>,
+          document.body,
+        )}
     </Page>
   );
 }

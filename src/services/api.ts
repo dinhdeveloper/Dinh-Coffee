@@ -17,7 +17,10 @@ function delay(ms: number) {
 // Render free tier "ngủ" sau ~15 phút không có request — lần gọi đầu tiên
 // sau đó có thể timeout/network-error (không phải lỗi HTTP, nên không có
 // res.ok để bắt) trong lúc server đang khởi động lại (~30-50s). Thử lại
-// một lần sau khoảng nghỉ ngắn trước khi báo lỗi hẳn cho người dùng.
+// nhiều lần, đủ lâu để qua hết giai đoạn cold-start đó, trước khi báo lỗi
+// hẳn cho người dùng.
+const RETRY_DELAYS_MS = [3000, 6000, 10000, 15000];
+
 async function request<T>(
   path: string,
   init?: RequestInit,
@@ -30,8 +33,8 @@ async function request<T>(
       ...init,
     });
   } catch (err) {
-    if (attempt < 1) {
-      await delay(2000);
+    if (attempt < RETRY_DELAYS_MS.length) {
+      await delay(RETRY_DELAYS_MS[attempt]);
       return request<T>(path, init, attempt + 1);
     }
     throw err;

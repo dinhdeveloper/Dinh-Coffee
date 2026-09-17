@@ -10,6 +10,7 @@ import {
   type ZaloAuthUser,
 } from "@/services/zalo-auth";
 import { fetchUser } from "@/services/users";
+import { DeliveryAddress, fetchAddresses, getDefaultAddress } from "@/services/address";
 
 type MenuItem = {
   icon: string;
@@ -30,6 +31,9 @@ function ProfilePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isAddingPhone, setIsAddingPhone] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [defaultAddress, setDefaultAddress] = useState<DeliveryAddress | null>(
+    null,
+  );
 
   useEffect(() => {
     const syncUser = () => setUser(getStoredZaloUser());
@@ -57,6 +61,27 @@ function ProfilePage() {
       })
       .catch(() => {
         if (!cancelled) setPoints(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setDefaultAddress(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    fetchAddresses(user.id)
+      .then((data) => {
+        if (!cancelled) setDefaultAddress(getDefaultAddress(data));
+      })
+      .catch(() => {
+        if (!cancelled) setDefaultAddress(null);
       });
 
     return () => {
@@ -146,8 +171,10 @@ function ProfilePage() {
       icon: "📍",
       bg: "#FFF4E8",
       label: "Địa chỉ giao hàng",
-      description: "Quản lý địa chỉ nhận hàng của bạn",
-      onClick: comingSoon,
+      description: defaultAddress
+        ? `${defaultAddress.receiver} · ${defaultAddress.detail}`
+        : "Quản lý địa chỉ nhận hàng của bạn",
+      onClick: () => navigate("/address"),
     },
     {
       icon: "☕",

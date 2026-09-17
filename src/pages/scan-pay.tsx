@@ -111,15 +111,39 @@ function ScanPayPage() {
   const pollTimer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
-    return () => clearTimeout(pollTimer.current);
+    return () => {
+      clearTimeout(pollTimer.current);
+      events.removeAllListeners(EventName.AppResumed);
+    };
   }, []);
 
   const startScan = () => {
     setPhase("scanning");
     setErrorMessage(null);
 
+    // Một số thiết bị/phiên bản Zalo: nếu người dùng đóng camera mà không
+    // quét, scanQRCode() không resolve cũng không reject — Promise treo mãi
+    // khiến giao diện kẹt ở màn "Đang mở camera...". AppResumed bắn ra khi
+    // webview quay lại foreground sau khi đóng camera native, dùng nó làm
+    // fallback: nếu lúc đó vẫn chưa có kết quả từ scanQRCode, coi như đã đóng.
+    let settled = false;
+
+    const handleResume = () => {
+      setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          setPhase("closed");
+        }
+      }, 400);
+    };
+
+    events.on(EventName.AppResumed, handleResume);
+
     scanQRCode()
       .then(({ content }) => {
+        settled = true;
+        events.off(EventName.AppResumed, handleResume);
+
         const parsed = parseAmountFromQr(content);
 
         if (!parsed) {
@@ -131,6 +155,9 @@ function ScanPayPage() {
         setPhase("confirm");
       })
       .catch((err) => {
+        settled = true;
+        events.off(EventName.AppResumed, handleResume);
+
         // eslint-disable-next-line no-console
         console.error("scanQRCode error/cancel:", describeError(err));
         setPhase("closed");
@@ -226,7 +253,7 @@ function ScanPayPage() {
       <Box
         className="flex items-center gap-3"
         style={{
-          paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px) + 10px)",
+          paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px))",
         }}
       >
         <button

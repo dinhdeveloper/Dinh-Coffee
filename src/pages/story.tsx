@@ -1,14 +1,38 @@
+import { useEffect, useState } from "react";
 import { Page, Text, Box, Icon, useNavigate } from "zmp-ui";
+import { CafeStory, fetchCafeStory } from "@/services/cafe-story";
 
 function StoryPage() {
   const navigate = useNavigate();
+  const [story, setStory] = useState<CafeStory | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchCafeStory()
+      .then((data) => {
+        if (!cancelled) setStory(data);
+      })
+      .catch(() => {
+        if (!cancelled) setError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <Page className="flex h-full min-h-0 flex-col overflow-y-auto bg-transparent px-4 py-2 hide-scrollbar">
       <Box
         className="flex items-center gap-3"
         style={{
-          paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px) + 10px)",
+          paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px))",
         }}
       >
         <button
@@ -19,31 +43,30 @@ function StoryPage() {
           <Icon icon="zi-arrow-left" size={22} />
         </button>
 
-        <Text.Title size="normal">Mỗi ngày 1 câu chuyện</Text.Title>
+        <Text.Title size="normal">{story?.title ?? "Mỗi ngày 1 câu chuyện"}</Text.Title>
       </Box>
 
       <Box className="mt-4 rounded-2xl border border-white/40 bg-white/10 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.15)] backdrop-blur-xl">
-        <Text className="text-sm leading-6 text-black/80">
-          Cà phê ngon không chỉ là một thức uống — đó là khoảnh khắc đánh
-          thức tâm trí và sưởi ấm tâm hồn bạn. Mỗi hạt cà phê đi qua một
-          hành trình dài, từ những nông trại trên cao nguyên đầy nắng gió,
-          qua bàn tay tỉ mỉ của người rang xay, để rồi hội tụ trong tách cà
-          phê bạn cầm trên tay mỗi sáng.
-        </Text>
-
-        <Text className="mt-3 text-sm leading-6 text-black/80">
-          Có người tìm đến cà phê để bắt đầu một ngày mới tràn đầy năng
-          lượng, có người lại xem đó là khoảng lặng để suy ngẫm, trò
-          chuyện cùng bạn bè hay đơn giản là ngồi một mình ngắm phố phường
-          trôi qua khung cửa sổ.
-        </Text>
-
-        <Text className="mt-3 text-sm leading-6 text-black/80">
-          Dù bạn thưởng thức cà phê theo cách nào, chúng tôi tin rằng mỗi
-          tách cà phê đều mang trong mình một câu chuyện riêng — câu
-          chuyện của hương vị, của con người, và của những khoảnh khắc
-          đáng nhớ trong cuộc sống thường ngày.
-        </Text>
+        {loading ? (
+          <Box className="flex flex-col gap-2">
+            {[0, 1, 2].map((i) => (
+              <Box key={i} className="h-4 animate-pulse rounded bg-white/40" />
+            ))}
+          </Box>
+        ) : error || !story ? (
+          <Text className="text-sm text-black/60">
+            Không tải được câu chuyện hôm nay, vui lòng thử lại sau.
+          </Text>
+        ) : (
+          story.content.split("\n\n").map((paragraph, index) => (
+            <Text
+              key={index}
+              className={`text-sm leading-6 text-black/80 ${index > 0 ? "mt-3" : ""}`}
+            >
+              {paragraph}
+            </Text>
+          ))
+        )}
       </Box>
     </Page>
   );

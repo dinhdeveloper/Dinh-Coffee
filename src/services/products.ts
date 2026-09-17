@@ -9,6 +9,7 @@ export type Product = {
   rating: string;
   reviews: string;
   description: string;
+  purchaseCount: number;
 };
 
 type ProductsResponse = { data: Product[] };

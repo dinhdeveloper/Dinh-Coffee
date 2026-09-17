@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useAtomValue } from "jotai";
 import { Page, Text, Swiper, Box, Icon, useNavigate } from "zmp-ui";
 import { fetchProducts, Product } from "@/services/products";
-import { fetchProperties, Property } from "@/services/properties";
+import { fetchStories, StoreStory } from "@/services/stories";
 import { cartCountAtom } from "@/store/cart";
 import StoreStories from "@/components/store-stories";
 import ProductCard from "@/components/product-card";
@@ -31,7 +31,7 @@ function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  const [properties, setProperties] = useState<Property[]>([]);
+  const [properties, setProperties] = useState<StoreStory[]>([]);
   const [propertiesLoading, setPropertiesLoading] = useState(true);
   const [propertiesError, setPropertiesError] = useState(false);
 
@@ -63,7 +63,7 @@ function HomePage() {
     setPropertiesLoading(true);
     setPropertiesError(false);
 
-    fetchProperties()
+    fetchStories()
       .then((data) => {
         if (!cancelled) setProperties(data);
       })
@@ -152,7 +152,7 @@ function HomePage() {
         stores={properties.map((property) => ({
           id: property.id,
           title: property.title,
-          avatar: property.thumbnail,
+          avatar: property.thumbnail ?? property.avatar,
           image: property.image,
         }))}
       />
@@ -161,7 +161,7 @@ function HomePage() {
         {/* Main card */}
         <Box className="relative min-w-0 flex-1 rounded-2xl border border-white/40 bg-white/10 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.15)] backdrop-blur-xl">
           <Text className="text-lg font-bold leading-tight text-black">
-            Câu chuyện cafe hôm nay
+            Cà phê kể chuyện mỗi ngày
           </Text>
 
           <Text className="mt-2 line-clamp-2 pr-9 text-sm leading-5 text-black/80">
@@ -378,22 +378,17 @@ function HomePage() {
 
                   {/* Badge top-left */}
                   <Box className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-white/90 py-1 pl-1 pr-3 shadow-sm backdrop-blur-sm">
-                    <Box className="flex -space-x-2">
-                      {property.avatars.map((avatar, idx) => (
-                        <img
-                          key={idx}
-                          src={avatar}
-                          alt=""
-                          className="h-6 w-6 rounded-full border-2 border-white object-cover"
-                        />
-                      ))}
-                    </Box>
+                    <img
+                      src={property.avatar}
+                      alt=""
+                      className="h-6 w-6 rounded-full border-2 border-white object-cover"
+                    />
 
                     <Text
                       size="xSmall"
                       className="font-medium text-[#2f2f2f]"
                     >
-                      + {property.joiningPercent} lượt mua
+                      + {property.purchaseCount.toLocaleString("vi-VN")} lượt mua
                     </Text>
                   </Box>
 
@@ -412,7 +407,7 @@ function HomePage() {
                   {/* Card thông tin */}
                   <Box className="absolute bottom-3 left-3 right-3 flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
                     <img
-                      src={property.thumbnail}
+                      src={property.thumbnail ?? property.image}
                       alt=""
                       className="h-14 w-14 flex-none rounded-xl object-cover"
                     />

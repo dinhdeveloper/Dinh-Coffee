@@ -9,6 +9,7 @@ import {
   Notification as NotifItem,
   NotificationType as NotifType,
 } from "@/services/notifications";
+import { getStoredZaloUser } from "@/services/zalo-auth";
 
 const typeMeta: Record<NotifType, { icon: string; bg: string; cta: string }> = {
   order: { icon: "☕", bg: "#FFF0F5", cta: "Xem đơn hàng" },
@@ -124,7 +125,7 @@ function NotificationPage() {
   useEffect(() => {
     let cancelled = false;
 
-    fetchNotifications()
+    fetchNotifications(getStoredZaloUser()?.id)
       .then((data) => {
         if (!cancelled) setNotifications(data);
       })
@@ -175,7 +176,7 @@ function NotificationPage() {
 
   const markAllAsRead = () => {
     setNotifications((prev) => prev.map((item) => ({ ...item, unread: false })));
-    markAllNotificationsRead().catch(() => {});
+    markAllNotificationsRead(getStoredZaloUser()?.id).catch(() => {});
   };
 
   const deleteNotification = (id: string) => {

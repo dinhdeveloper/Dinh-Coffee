@@ -31,9 +31,92 @@ model Order {
   amount             Int
   status             String   @default("pending") // "pending" | "paid" | "failed"
   items              Json // OrderItem[]
-  address            Json? // DeliveryAddress
+  address            Json? // DeliveryAddress snapshot lúc đặt hàng
   checkoutSdkOrderId String?
   createdAt          DateTime @default(now())
 
   @@map("orders")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String? // null = thông báo chung, hiện cho mọi người dùng
+  type      String // "order" | "promo" | "system"
+  title     String
+  message   String
+  unread    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("notifications")
+}
+
+// Sổ địa chỉ giao hàng — gắn với userId (id Zalo) để đồng bộ giữa các thiết
+// bị/lần cài lại app, thay vì chỉ lưu trên localStorage của từng máy.
+model Address {
+  id        String   @id @default(cuid())
+  userId    String
+  receiver  String
+  phone     String
+  detail    String
+  note      String?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+// "Mỗi ngày 1 câu chuyện" — bài viết dài hiển thị ở trang /story, đổi mới
+// theo publishedAt thay vì hard-code 1 đoạn văn cố định trong code.
+model CafeStory {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  publishedAt DateTime @default(now())
+
+  @@map("cafe_stories")
+}
+
+// Story 24h kiểu Instagram (avatar bar ở trang chủ + thẻ "câu chuyện" nổi
+// bật) — chỉ hiển thị trong vòng 24h kể từ khi tạo (lọc theo expiresAt ở
+// tầng query), qua giờ đó tự động biến mất mà không cần dọn dữ liệu thủ công.
+model StoreStory {
+  id            String   @id @default(cuid())
+  title         String
+  location      String?
+  rating        Float?
+  price         String?
+  avatar        String
+  image         String
+  thumbnail     String?
+  productId     String?
+  purchaseCount Int      @default(0) // số lượng đã mua, hiện dạng "+X lượt mua"
+  createdAt     DateTime @default(now())
+  expiresAt     DateTime
+
+  @@map("store_stories")
+}
+
+// Đánh giá sản phẩm — 1 user có thể đánh giá nhiều sản phẩm khác nhau.
+model Review {
+  id        String   @id @default(cuid())
+  productId String
+  userId    String
+  userName  String
+  rating    Int // 1-5
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@map("reviews")
+}
+
+// Đếm số lượng đã bán theo sản phẩm — cộng dồn mỗi khi 1 đơn hàng chứa sản
+// phẩm đó được xác nhận "paid" (xem markOrderPaid trong orders.store.ts).
+model ProductStat {
+  productId     String @id
+  purchaseCount Int    @default(0)
+
+  @@map("product_stats")
 }

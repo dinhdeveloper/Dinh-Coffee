@@ -2,6 +2,8 @@ import { Prisma } from "@prisma/client";
 import { env } from "@/config/env";
 import { prisma } from "@/lib/prisma";
 import { addPoints } from "@/data/users.store";
+import { incrementPurchaseCount } from "@/data/product-stats.store";
+import { createNotification } from "@/data/notifications.store";
 import { Order } from "@/types/order";
 
 function toOrder(row: {
@@ -97,5 +99,18 @@ export async function markOrderPaid(order: Order) {
 
   if (order.userId) {
     await addPoints(order.userId, Math.floor(order.amount / env.pointsPerVnd));
+  }
+
+  await Promise.all(
+    order.items.map((item) => incrementPurchaseCount(item.id, item.quantity)),
+  );
+
+  if (order.userId) {
+    await createNotification({
+      userId: order.userId,
+      type: "order",
+      title: "Đơn hàng đã thanh toán",
+      message: `Đơn #${order.id} của bạn đã thanh toán thành công, cảm ơn bạn đã ủng hộ!`,
+    });
   }
 }
