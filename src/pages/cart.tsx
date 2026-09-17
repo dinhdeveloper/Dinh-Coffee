@@ -206,21 +206,35 @@ function CartPage() {
     setPhase("creating");
     clearTimeout(pollTimer.current);
 
+    let order: Awaited<ReturnType<typeof checkoutOrder>>;
     try {
-      const order = await checkoutOrder(
+      order = await checkoutOrder(
         items.map((item) => ({ id: item.id, quantity: item.quantity })),
       );
-
-      await openOutApp({ url: order.orderUrl });
-
-      setPhase("waiting");
-      pollOrderStatus(order.orderId, Date.now());
     } catch (err) {
+      const detail =
+        err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      console.error("[checkout] tạo đơn thất bại:", detail);
       setPhase("idle");
       setCheckoutError(
         err instanceof ApiError
           ? err.message
-          : "Không thể mở giao diện thanh toán, vui lòng thử lại",
+          : `Không kết nối được tới máy chủ (${detail}), vui lòng thử lại`,
+      );
+      return;
+    }
+
+    try {
+      await openOutApp({ url: order.orderUrl });
+      setPhase("waiting");
+      pollOrderStatus(order.orderId, Date.now());
+    } catch (err) {
+      const detail =
+        err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      console.error("[checkout] openOutApp thất bại:", detail, order.orderUrl);
+      setPhase("idle");
+      setCheckoutError(
+        `Không thể mở giao diện thanh toán (${detail}), vui lòng thử lại`,
       );
     }
   };

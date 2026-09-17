@@ -10,11 +10,32 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  });
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Render free tier "ngủ" sau ~15 phút không có request — lần gọi đầu tiên
+// sau đó có thể timeout/network-error (không phải lỗi HTTP, nên không có
+// res.ok để bắt) trong lúc server đang khởi động lại (~30-50s). Thử lại
+// một lần sau khoảng nghỉ ngắn trước khi báo lỗi hẳn cho người dùng.
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  attempt = 0,
+): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      headers: { "Content-Type": "application/json" },
+      ...init,
+    });
+  } catch (err) {
+    if (attempt < 1) {
+      await delay(2000);
+      return request<T>(path, init, attempt + 1);
+    }
+    throw err;
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => null);
