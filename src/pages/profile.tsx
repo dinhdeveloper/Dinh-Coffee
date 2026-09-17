@@ -8,6 +8,7 @@ import {
   ZALO_AUTH_CHANGED_EVENT,
   type ZaloAuthUser,
 } from "@/services/zalo-auth";
+import { fetchUser } from "@/services/users";
 
 type MenuItem = {
   icon: string;
@@ -23,6 +24,7 @@ function ProfilePage() {
   const [user, setUser] = useState<ZaloAuthUser | null>(() =>
     getStoredZaloUser(),
   );
+  const [points, setPoints] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -33,6 +35,27 @@ function ProfilePage() {
 
     return () => window.removeEventListener(ZALO_AUTH_CHANGED_EVENT, syncUser);
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setPoints(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    fetchUser(user.id)
+      .then((data) => {
+        if (!cancelled) setPoints(data.points);
+      })
+      .catch(() => {
+        if (!cancelled) setPoints(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setMounted(true));
@@ -157,6 +180,20 @@ function ProfilePage() {
             </Text>
           </Box>
         </Box>
+
+        {user && points !== null && (
+          <Box className="mt-4 flex items-center justify-between rounded-2xl bg-white/70 px-4 py-3 backdrop-blur-xl">
+            <Box className="flex items-center gap-2">
+              <Text className="text-lg leading-none">⭐</Text>
+              <Text size="small" className="font-medium text-black/70">
+                Điểm thưởng
+              </Text>
+            </Box>
+            <Text.Title size="normal" className="font-bold text-[#1a1a1a]">
+              {points.toLocaleString("vi-VN")}
+            </Text.Title>
+          </Box>
+        )}
 
         {user ? (
           <button

@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { env } from "@/config/env";
 import { products } from "@/data/products.data";
-import { orders } from "@/data/orders.store";
+import { markOrderPaid, orders } from "@/data/orders.store";
 import { createZaloPayOrder, queryZaloPayOrder } from "@/lib/zalopay";
 import { signCreateOrder } from "@/lib/zmp-payment";
 import { Order, OrderItem } from "@/types/order";
@@ -43,7 +43,10 @@ function resolveOrderItems(items: { id: string; quantity: number }[] = []) {
 }
 
 export async function checkout(req: Request, res: Response) {
-  const body = req.body as { items?: { id: string; quantity: number }[] };
+  const body = req.body as {
+    items?: { id: string; quantity: number }[];
+    userId?: string;
+  };
 
   if (!body.items || body.items.length === 0) {
     res.status(400).json({ message: "Giỏ hàng đang trống" });
@@ -87,6 +90,7 @@ export async function checkout(req: Request, res: Response) {
       amount,
       status: "pending",
       createdAt: Date.now(),
+      userId: body.userId,
     };
 
     orders.set(order.id, order);
@@ -107,7 +111,7 @@ export async function checkout(req: Request, res: Response) {
 // quét mã rồi gọi API này để tạo đơn ZaloPay với đúng số tiền đó — không đi
 // qua giỏ hàng/catalog sản phẩm như checkout() ở trên.
 export async function checkoutInStore(req: Request, res: Response) {
-  const body = req.body as { amount?: number };
+  const body = req.body as { amount?: number; userId?: string };
   const amount = Math.floor(Number(body.amount));
 
   if (!amount || amount < 1000) {
@@ -148,6 +152,7 @@ export async function checkoutInStore(req: Request, res: Response) {
       amount,
       status: "pending",
       createdAt: Date.now(),
+      userId: body.userId,
     };
 
     orders.set(order.id, order);
@@ -181,7 +186,7 @@ export async function getOrderStatus(req: Request, res: Response) {
     const zpResult = await queryZaloPayOrder(order.id);
 
     if (zpResult.return_code === 1) {
-      order.status = "paid";
+      markOrderPaid(order);
     } else if (zpResult.return_code === 2) {
       order.status = "failed";
     }
@@ -209,7 +214,10 @@ export function createOrderMac(req: Request, res: Response) {
     );
   }
 
-  const body = req.body as { items?: { id: string; quantity: number }[] };
+  const body = req.body as {
+    items?: { id: string; quantity: number }[];
+    userId?: string;
+  };
   const { orderItems, amount } = resolveOrderItems(body.items);
 
   if (orderItems.length === 0) {
@@ -233,6 +241,7 @@ export function createOrderMac(req: Request, res: Response) {
     amount,
     status: "pending",
     createdAt: Date.now(),
+    userId: body.userId,
   };
 
   orders.set(order.id, order);

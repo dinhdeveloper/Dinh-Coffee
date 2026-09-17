@@ -31,14 +31,14 @@ export type Order = {
 type CheckoutResponse = { data: CheckoutResult };
 type OrderResponse = { data: Order };
 
-export function checkoutOrder(items: CheckoutItem[]) {
-  return apiPost<CheckoutResponse>("/orders", { items }).then(
+export function checkoutOrder(items: CheckoutItem[], userId?: string) {
+  return apiPost<CheckoutResponse>("/orders", { items, userId }).then(
     (res) => res.data,
   );
 }
 
-export function checkoutInStoreOrder(amount: number) {
-  return apiPost<CheckoutResponse>("/orders/instore", { amount }).then(
+export function checkoutInStoreOrder(amount: number, userId?: string) {
+  return apiPost<CheckoutResponse>("/orders/instore", { amount, userId }).then(
     (res) => res.data,
   );
 }

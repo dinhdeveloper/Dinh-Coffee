@@ -4,4 +4,5 @@ export type User = {
   avatar: string;
   firstLoginAt: number;
   lastLoginAt: number;
+  points: number;
 };

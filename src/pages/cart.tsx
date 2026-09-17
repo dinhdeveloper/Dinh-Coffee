@@ -7,6 +7,7 @@ import { CartItem, cartItemsAtom, cartTotalAtom } from "@/store/cart";
 import { ApiError } from "@/services/api";
 import { checkoutOrder, fetchOrderStatus } from "@/services/orders";
 import { addOrderToHistory } from "@/services/order-history";
+import { getStoredZaloUser } from "@/services/zalo-auth";
 
 type CheckoutPhase = "idle" | "creating" | "waiting" | "success" | "failed";
 
@@ -235,6 +236,7 @@ function CartPage() {
     try {
       order = await checkoutOrder(
         items.map((item) => ({ id: item.id, quantity: item.quantity })),
+        getStoredZaloUser()?.id,
       );
     } catch (err) {
       const detail = describeError(err);

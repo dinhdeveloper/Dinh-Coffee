@@ -19,6 +19,7 @@ export function syncUser(req: Request, res: Response) {
     avatar: body.avatar ?? "",
     firstLoginAt: existing?.firstLoginAt ?? now,
     lastLoginAt: now,
+    points: existing?.points ?? 0,
   };
 
   users.set(user.id, user);

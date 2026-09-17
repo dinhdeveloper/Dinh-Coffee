@@ -1,4 +1,4 @@
-import { apiPost } from "@/services/api";
+import { apiGet, apiPost } from "@/services/api";
 
 export type SyncedUser = {
   id: string;
@@ -6,6 +6,7 @@ export type SyncedUser = {
   avatar: string;
   firstLoginAt: number;
   lastLoginAt: number;
+  points: number;
 };
 
 type SyncUserResponse = { data: SyncedUser };
@@ -18,4 +19,8 @@ export function syncUserToBackend(user: {
   return apiPost<SyncUserResponse>("/users/sync", user).then(
     (res) => res.data,
   );
+}
+
+export function fetchUser(id: string) {
+  return apiGet<SyncUserResponse>(`/users/${id}`).then((res) => res.data);
 }

@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { orders } from "@/data/orders.store";
+import { markOrderPaid, orders } from "@/data/orders.store";
 import { verifyZaloPayCallbackMac } from "@/lib/zalopay";
 import { verifyCallbackMac, verifyOverallMac } from "@/lib/zmp-payment";
 
@@ -16,7 +16,7 @@ export function zaloPayCallback(req: Request, res: Response) {
     const order = orders.get(payload.app_trans_id);
 
     if (order) {
-      order.status = "paid";
+      markOrderPaid(order);
     }
 
     res.json({ return_code: 1, return_message: "success" });
@@ -83,7 +83,11 @@ export function zmpCheckoutCallback(req: Request, res: Response) {
     return;
   }
 
-  order.status = data.resultCode === 1 ? "paid" : "failed";
+  if (data.resultCode === 1) {
+    markOrderPaid(order);
+  } else {
+    order.status = "failed";
+  }
 
   res.json({ returnCode: 1, returnMessage: "success" });
 }
