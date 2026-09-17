@@ -17,8 +17,9 @@ services:
         value: "PurTcToVhvUt7vR2jO6He4lh3nfNEiks"
       - key: ZALOPAY_ENDPOINT
         value: "https://sb-openapi.zalopay.vn/v2/"
-      # Sau khi deploy xong, thay 2 biến dưới bằng URL thật (xem README)
+      # URL backend that da duoc deploy (khong phai ten mac dinh o tren)
       - key: ZALOPAY_CALLBACK_URL
-        value: "https://boomberry-backend.onrender.com/api/payments/zalopay/callback"
+        value: "https://dinh-coffee.onrender.com/api/payments/zalopay/callback"
+      # Deep link quay lai Mini App that sau khi thanh toan xong tren ZaloPay
       - key: ZALOPAY_REDIRECT_URL
-        value: "https://boomberry-backend.onrender.com/cart"
+        value: "https://zalo.me/s/1749516642743608452/"
