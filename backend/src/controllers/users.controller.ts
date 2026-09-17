@@ -1,8 +1,7 @@
 import { Request, Response } from "express";
-import { users } from "@/data/users.store";
-import { User } from "@/types/user";
+import { getUser as getUserFromStore, upsertUser } from "@/data/users.store";
 
-export function syncUser(req: Request, res: Response) {
+export async function syncUser(req: Request, res: Response) {
   const body = req.body as { id?: string; name?: string; avatar?: string };
 
   if (!body.id || !body.name) {
@@ -10,25 +9,17 @@ export function syncUser(req: Request, res: Response) {
     return;
   }
 
-  const now = Date.now();
-  const existing = users.get(body.id);
-
-  const user: User = {
+  const user = await upsertUser({
     id: body.id,
     name: body.name,
     avatar: body.avatar ?? "",
-    firstLoginAt: existing?.firstLoginAt ?? now,
-    lastLoginAt: now,
-    points: existing?.points ?? 0,
-  };
-
-  users.set(user.id, user);
+  });
 
   res.json({ data: user });
 }
 
-export function getUser(req: Request, res: Response) {
-  const user = users.get(req.params.id);
+export async function getUser(req: Request, res: Response) {
+  const user = await getUserFromStore(req.params.id);
 
   if (!user) {
     res.status(404).json({ message: "Không tìm thấy người dùng" });

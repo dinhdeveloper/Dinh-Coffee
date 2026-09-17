@@ -1,9 +1,14 @@
 import { Request, Response } from "express";
-import { markOrderPaid, orders } from "@/data/orders.store";
+import {
+  findOrderByCheckoutSdkOrderId,
+  getOrder,
+  markOrderPaid,
+  setOrderStatus,
+} from "@/data/orders.store";
 import { verifyZaloPayCallbackMac } from "@/lib/zalopay";
 import { verifyCallbackMac, verifyOverallMac } from "@/lib/zmp-payment";
 
-export function zaloPayCallback(req: Request, res: Response) {
+export async function zaloPayCallback(req: Request, res: Response) {
   const { data, mac } = req.body as { data?: string; mac?: string };
 
   if (!data || !mac || !verifyZaloPayCallbackMac(data, mac)) {
@@ -13,10 +18,10 @@ export function zaloPayCallback(req: Request, res: Response) {
 
   try {
     const payload = JSON.parse(data) as { app_trans_id: string };
-    const order = orders.get(payload.app_trans_id);
+    const order = await getOrder(payload.app_trans_id);
 
     if (order) {
-      markOrderPaid(order);
+      await markOrderPaid(order);
     }
 
     res.json({ return_code: 1, return_message: "success" });
@@ -42,7 +47,7 @@ type ZmpCallbackData = {
   extradata?: string;
 };
 
-export function zmpCheckoutCallback(req: Request, res: Response) {
+export async function zmpCheckoutCallback(req: Request, res: Response) {
   const body = req.body as {
     data?: ZmpCallbackData;
     mac?: string;
@@ -64,9 +69,7 @@ export function zmpCheckoutCallback(req: Request, res: Response) {
 
   // Đơn nội bộ được liên kết qua bước POST /api/orders/:id/link (mobile gọi
   // ngay sau khi createOrder() trả về orderId của Zalo).
-  const order = [...orders.values()].find(
-    (item) => item.checkoutSdkOrderId === data.orderId,
-  );
+  const order = await findOrderByCheckoutSdkOrderId(data.orderId);
 
   if (!order) {
     res.json({ returnCode: -1, returnMessage: "order not found" });
@@ -84,9 +87,9 @@ export function zmpCheckoutCallback(req: Request, res: Response) {
   }
 
   if (data.resultCode === 1) {
-    markOrderPaid(order);
+    await markOrderPaid(order);
   } else {
-    order.status = "failed";
+    await setOrderStatus(order.id, "failed");
   }
 
   res.json({ returnCode: 1, returnMessage: "success" });

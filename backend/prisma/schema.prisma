@@ -1,6 +1,8 @@
-// Thiết kế database đầy đủ cho BoomBerry mini app.
-// Đây là bản DESIGN, chưa migrate/kết nối DB thật — khi có DATABASE_URL
-// (Postgres) thì chạy: npx prisma generate && npx prisma migrate dev
+// Schema tối giản, khớp 1:1 với các type hiện có trong src/types — chỉ
+// persist đúng 2 thứ từng bị mất khi Render restart server (Map trong bộ
+// nhớ): User (điểm thưởng) và Order (đơn hàng, tình trạng thanh toán).
+// Catalog (products/categories/properties) vẫn là dữ liệu tĩnh seed từ code,
+// không cần DB. Chạy đồng bộ schema này lên Postgres bằng: npx prisma db push
 
 datasource db {
   provider = "postgresql"
@@ -11,237 +13,26 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// ---------- USER ----------
 model User {
-  id            String    @id @default(cuid())
-  zaloId        String    @unique          // id Zalo (OA/Mini App) dùng để login
-  name          String
-  avatar        String?
-  phone         String?
-  firstLoginAt  DateTime  @default(now())
-  lastLoginAt   DateTime  @updatedAt
-
-  addresses     Address[]
-  orders        Order[]
-  cartItems     CartItem[]
-  reviews       Review[]
-  notifications Notification[]
+  id           String   @id // id Zalo của người dùng
+  name         String
+  avatar       String   @default("")
+  points       Int      @default(0)
+  firstLoginAt DateTime @default(now())
+  lastLoginAt  DateTime @default(now())
 
   @@map("users")
 }
 
-model Address {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  label     String?           // "Nhà", "Công ty"
-  receiver  String
-  phone     String
-  detail    String
-  ward      String?
-  district  String?
-  province  String?
-  isDefault Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  orders    Order[]
-
-  @@map("addresses")
-}
-
-// ---------- CATALOG ----------
-model Category {
-  id        String    @id @default(cuid())
-  name      String    @unique          // "Trà sữa", "Trà trái cây"
-  slug      String    @unique
-  image     String?
-  sortOrder Int       @default(0)
-  isActive  Boolean   @default(true)
-
-  products  Product[]
-
-  @@map("categories")
-}
-
-model Product {
-  id             String        @id @default(cuid())
-  title          String
-  slug           String        @unique
-  price          Int                       // lưu số nguyên (VND), không lưu string "35.000đ"
-  compareAtPrice Int?                      // giá gốc, để hiển thị giảm giá
-  image          String
-  description    String?
-  categoryId     String
-  category       Category      @relation(fields: [categoryId], references: [id])
-  stock          Int           @default(0)
-  isActive       Boolean       @default(true)
-  ratingAvg      Decimal       @default(0) @db.Decimal(2, 1)
-  reviewCount    Int           @default(0)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-
-  images         ProductImage[]
-  reviews        Review[]
-  orderItems     OrderItem[]
-  cartItems      CartItem[]
-  property       Property?
-
-  @@map("products")
-}
-
-model ProductImage {
-  id        String   @id @default(cuid())
-  productId String
-  product   Product  @relation(fields: [productId], references: [id])
-  url       String
-  sortOrder Int      @default(0)
-
-  @@map("product_images")
-}
-
-model Review {
-  id        String   @id @default(cuid())
-  productId String
-  product   Product  @relation(fields: [productId], references: [id])
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  rating    Int                       // 1..5
-  comment   String?
-  createdAt DateTime @default(now())
-
-  @@map("reviews")
-}
-
-// tính năng "góp vốn / nhượng quyền" đã có trong Property hiện tại
-model Property {
-  id             String   @id @default(cuid())
-  productId      String   @unique
-  product        Product  @relation(fields: [productId], references: [id])
-  title          String
-  location       String
-  price          Int
-  joiningPercent Decimal  @db.Decimal(5, 2)   // % đã góp vốn
-  thumbnail      String
-  createdAt      DateTime @default(now())
-
-  participants   PropertyParticipant[]
-
-  @@map("properties")
-}
-
-model PropertyParticipant {
-  id         String   @id @default(cuid())
-  propertyId String
-  property   Property @relation(fields: [propertyId], references: [id])
-  userId     String
-  avatar     String
-  joinedAt   DateTime @default(now())
-
-  @@map("property_participants")
-}
-
-// ---------- CART ----------
-model CartItem {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  productId String
-  product   Product  @relation(fields: [productId], references: [id])
-  quantity  Int      @default(1)
-  createdAt DateTime @default(now())
-
-  @@unique([userId, productId])
-  @@map("cart_items")
-}
-
-// ---------- ORDER ----------
-enum OrderStatus {
-  PENDING
-  PAID
-  PROCESSING
-  DELIVERING
-  COMPLETED
-  CANCELLED
-  FAILED
-}
-
 model Order {
-  id                 String      @id @default(cuid())
-  userId             String
-  user               User        @relation(fields: [userId], references: [id])
-  addressId          String?
-  address            Address?    @relation(fields: [addressId], references: [id])
-  amount             Int                       // tổng tiền (VND)
-  status             OrderStatus @default(PENDING)
-  checkoutSdkOrderId String?     @unique       // trả về từ zmp-sdk createOrder()
-  note               String?
-  createdAt          DateTime    @default(now())
-  updatedAt          DateTime    @updatedAt
-
-  items              OrderItem[]
-  payment            Payment?
+  id                 String   @id // appTransId gửi cho ZaloPay
+  userId             String?
+  amount             Int
+  status             String   @default("pending") // "pending" | "paid" | "failed"
+  items              Json // OrderItem[]
+  address            Json? // DeliveryAddress
+  checkoutSdkOrderId String?
+  createdAt          DateTime @default(now())
 
   @@map("orders")
-}
-
-model OrderItem {
-  id        String  @id @default(cuid())
-  orderId   String
-  order     Order   @relation(fields: [orderId], references: [id])
-  productId String
-  product   Product @relation(fields: [productId], references: [id])
-  title     String              // snapshot tên SP tại thời điểm mua
-  price     Int                 // snapshot giá tại thời điểm mua
-  quantity  Int
-
-  @@map("order_items")
-}
-
-// ---------- PAYMENT ----------
-enum PaymentMethod {
-  ZALOPAY
-  ZMP_CHECKOUT
-  COD
-}
-
-enum PaymentStatus {
-  PENDING
-  SUCCESS
-  FAILED
-}
-
-model Payment {
-  id          String        @id @default(cuid())
-  orderId     String        @unique
-  order       Order         @relation(fields: [orderId], references: [id])
-  method      PaymentMethod
-  status      PaymentStatus @default(PENDING)
-  amount      Int
-  transId     String?                 // transId phía ZaloPay/ZMP
-  appTransId  String?       @unique    // app_trans_id gửi cho ZaloPay
-  rawCallback Json?                    // lưu nguyên payload callback để đối soát
-  paidAt      DateTime?
-  createdAt   DateTime      @default(now())
-
-  @@map("payments")
-}
-
-// ---------- NOTIFICATION ----------
-enum NotificationType {
-  ORDER
-  PROMO
-  SYSTEM
-}
-
-model Notification {
-  id        String           @id @default(cuid())
-  userId    String
-  user      User             @relation(fields: [userId], references: [id])
-  type      NotificationType
-  title     String
-  message   String
-  unread    Boolean          @default(true)
-  createdAt DateTime         @default(now())
-
-  @@map("notifications")
 }

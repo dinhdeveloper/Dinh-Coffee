@@ -1,10 +1,16 @@
 import { Request, Response } from "express";
 import { env } from "@/config/env";
 import { products } from "@/data/products.data";
-import { markOrderPaid, orders } from "@/data/orders.store";
+import {
+  createOrder,
+  getOrder,
+  markOrderPaid,
+  setCheckoutSdkOrderId,
+  setOrderStatus,
+} from "@/data/orders.store";
 import { createZaloPayOrder, queryZaloPayOrder } from "@/lib/zalopay";
 import { signCreateOrder } from "@/lib/zmp-payment";
-import { Order, OrderItem } from "@/types/order";
+import { OrderItem } from "@/types/order";
 
 function parsePrice(price: string) {
   return Number(price.replace(/[^\d]/g, ""));
@@ -85,17 +91,13 @@ export async function checkout(req: Request, res: Response) {
       return;
     }
 
-    const order: Order = {
+    const order = await createOrder({
       id: appTransId,
       items: orderItems,
       amount,
-      status: "pending",
-      createdAt: Date.now(),
       userId: body.userId,
       address: body.address,
-    };
-
-    orders.set(order.id, order);
+    });
 
     res.json({
       data: {
@@ -141,7 +143,7 @@ export async function checkoutInStore(req: Request, res: Response) {
       return;
     }
 
-    const order: Order = {
+    const order = await createOrder({
       id: appTransId,
       items: [
         {
@@ -152,12 +154,8 @@ export async function checkoutInStore(req: Request, res: Response) {
         },
       ],
       amount,
-      status: "pending",
-      createdAt: Date.now(),
       userId: body.userId,
-    };
-
-    orders.set(order.id, order);
+    });
 
     res.json({
       data: {
@@ -172,7 +170,7 @@ export async function checkoutInStore(req: Request, res: Response) {
 }
 
 export async function getOrderStatus(req: Request, res: Response) {
-  const order = orders.get(req.params.id);
+  const order = await getOrder(req.params.id);
 
   if (!order) {
     res.status(404).json({ message: "Không tìm thấy đơn hàng" });
@@ -188,9 +186,10 @@ export async function getOrderStatus(req: Request, res: Response) {
     const zpResult = await queryZaloPayOrder(order.id);
 
     if (zpResult.return_code === 1) {
-      markOrderPaid(order);
+      await markOrderPaid(order);
     } else if (zpResult.return_code === 2) {
       order.status = "failed";
+      await setOrderStatus(order.id, "failed");
     }
   } catch (err) {
     // giữ nguyên trạng thái pending nếu không gọi được ZaloPay, client sẽ tự thử lại
@@ -204,7 +203,7 @@ export async function getOrderStatus(req: Request, res: Response) {
 // mac phải được ký ở backend vì cần private key riêng của Mini App.
 // Đồng thời tạo sẵn 1 đơn hàng nội bộ (status "pending") để đối chiếu khi
 // nhận webhook callback từ Zalo sau này.
-export function createOrderMac(req: Request, res: Response) {
+export async function createOrderMac(req: Request, res: Response) {
   // TODO: khi có private key thật (Zalo Developers > Mini App > Payment),
   // set ZMP_PAYMENT_PRIVATE_KEY trong backend/.env — mac ký ra mới được Zalo
   // chấp nhận cho giao dịch thật. Thiếu key, mac vẫn được ký (bằng key rỗng)
@@ -237,16 +236,12 @@ export function createOrderMac(req: Request, res: Response) {
 
   const mac = signCreateOrder({ amount, desc, item });
 
-  const order: Order = {
+  const order = await createOrder({
     id: generateAppTransId(),
     items: orderItems,
     amount,
-    status: "pending",
-    createdAt: Date.now(),
     userId: body.userId,
-  };
-
-  orders.set(order.id, order);
+  });
 
   res.json({ data: { orderId: order.id, amount, desc, item, mac } });
 }
@@ -254,14 +249,7 @@ export function createOrderMac(req: Request, res: Response) {
 // Mobile gọi ngay sau khi createOrder() (Checkout SDK) trả về orderId của
 // Zalo, để backend biết đơn nội bộ nào ứng với giao dịch nào — vì webhook
 // callback ở dưới chỉ biết orderId của Zalo, không biết id đơn của mình.
-export function linkCheckoutOrder(req: Request, res: Response) {
-  const order = orders.get(req.params.id);
-
-  if (!order) {
-    res.status(404).json({ message: "Không tìm thấy đơn hàng" });
-    return;
-  }
-
+export async function linkCheckoutOrder(req: Request, res: Response) {
   const { checkoutSdkOrderId } = req.body as { checkoutSdkOrderId?: string };
 
   if (!checkoutSdkOrderId) {
@@ -269,6 +257,12 @@ export function linkCheckoutOrder(req: Request, res: Response) {
     return;
   }
 
-  order.checkoutSdkOrderId = checkoutSdkOrderId;
+  const order = await setCheckoutSdkOrderId(req.params.id, checkoutSdkOrderId);
+
+  if (!order) {
+    res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+    return;
+  }
+
   res.json({ data: order });
 }
