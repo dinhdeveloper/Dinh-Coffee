@@ -68,7 +68,7 @@ function OrderDetailPage() {
       <Box
         className="flex items-center gap-3"
         style={{
-          paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px) + 20px)",
+          paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px) + 10px)",
         }}
       >
         <button
@@ -186,6 +186,26 @@ function OrderDetailPage() {
               </Text>
             </Box>
           </Box>
+
+          {order.address && (
+            <Box className="mt-4 flex-none rounded-3xl bg-white p-4 shadow-[0_8px_24px_rgba(0,0,0,0.06)]">
+              <Text size="small" className="font-bold text-[#1a1a1a]">
+                Giao đến
+              </Text>
+
+              <Text size="small" className="mt-2 font-semibold text-[#1a1a1a]">
+                {order.address.receiver} · {order.address.phone}
+              </Text>
+              <Text size="small" className="mt-0.5 text-gray-500">
+                {order.address.detail}
+              </Text>
+              {order.address.note && (
+                <Text size="xSmall" className="mt-1 text-gray-400">
+                  Ghi chú: {order.address.note}
+                </Text>
+              )}
+            </Box>
+          )}
 
           {/* =========================
               ITEMS

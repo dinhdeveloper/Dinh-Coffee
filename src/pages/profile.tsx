@@ -189,9 +189,9 @@ function ProfilePage() {
                 Điểm thưởng
               </Text>
             </Box>
-            <Text.Title size="normal" className="font-bold text-[#1a1a1a]">
+            <Text size="small" className="font-bold text-[#1a1a1a]">
               {points.toLocaleString("vi-VN")}
-            </Text.Title>
+            </Text>
           </Box>
         )}
 

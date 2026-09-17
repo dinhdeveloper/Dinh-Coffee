@@ -1,4 +1,5 @@
 import { apiGet, apiPost } from "@/services/api";
+import type { DeliveryAddress } from "@/services/address";
 
 export type OrderStatus = "pending" | "paid" | "failed";
 
@@ -26,13 +27,18 @@ export type Order = {
   status: OrderStatus;
   items: OrderLineItem[];
   createdAt: number;
+  address?: DeliveryAddress;
 };
 
 type CheckoutResponse = { data: CheckoutResult };
 type OrderResponse = { data: Order };
 
-export function checkoutOrder(items: CheckoutItem[], userId?: string) {
-  return apiPost<CheckoutResponse>("/orders", { items, userId }).then(
+export function checkoutOrder(
+  items: CheckoutItem[],
+  userId?: string,
+  address?: DeliveryAddress,
+) {
+  return apiPost<CheckoutResponse>("/orders", { items, userId, address }).then(
     (res) => res.data,
   );
 }

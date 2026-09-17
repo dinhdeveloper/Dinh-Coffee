@@ -187,7 +187,7 @@ function ProductDetailPage() {
         <Box
           className="absolute inset-x-0 top-0 flex items-center justify-between px-4"
           style={{
-            paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px) + 20px)",
+            paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px) + 10px)",
           }}
         >
           <button
@@ -197,20 +197,6 @@ function ProductDetailPage() {
             className="flex h-10 w-10 items-center justify-center rounded-full border-0 bg-white/90 text-[#141415] shadow-[0_8px_20px_rgba(0,0,0,0.15)] backdrop-blur-sm transition-transform active:scale-90"
           >
             <Icon icon="zi-arrow-left" size={22} />
-          </button>
-
-          <button
-            type="button"
-            aria-label="Giỏ hàng"
-            onClick={() => navigate("/cart")}
-            className="relative flex h-10 w-10 items-center justify-center rounded-full border-0 bg-white/90 text-lg shadow-[0_8px_20px_rgba(0,0,0,0.15)] backdrop-blur-sm transition-transform active:scale-75"
-          >
-            🛒
-            {cartCount > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow-[0_2px_6px_rgba(239,68,68,0.5)]">
-                {cartCount > 99 ? "99+" : cartCount}
-              </span>
-            )}
           </button>
         </Box>
       </Box>
@@ -366,6 +352,20 @@ function ProductDetailPage() {
               className="transition-transform duration-200"
               style={{ transform: liked ? "scale(1.15)" : "scale(1)" }}
             />
+          </button>
+
+          <button
+            type="button"
+            aria-label="Giỏ hàng"
+            onClick={() => navigate("/cart")}
+            className="relative flex h-12 w-12 flex-none items-center justify-center rounded-full border border-gray-200 bg-white text-lg transition-transform active:scale-90"
+          >
+            🛒
+            {cartCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow-[0_2px_6px_rgba(239,68,68,0.5)]">
+                {cartCount > 99 ? "99+" : cartCount}
+              </span>
+            )}
           </button>
 
           <Box className="min-w-0 flex-1">

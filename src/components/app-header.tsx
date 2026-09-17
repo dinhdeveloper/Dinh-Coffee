@@ -1,5 +1,11 @@
+import { useEffect, useState } from "react";
 import { Avatar, Box, Icon, Text, useNavigate } from "zmp-ui";
 import logo from '@/static/logo.png';
+import {
+  getStoredZaloUser,
+  ZALO_AUTH_CHANGED_EVENT,
+  type ZaloAuthUser,
+} from "@/services/zalo-auth";
 
 type AppHeaderProps = {
   title?: string;
@@ -15,12 +21,22 @@ function AppHeader({
   showAvatar = true,
 }: AppHeaderProps) {
   const navigate = useNavigate();
+  const [zaloUser, setZaloUser] = useState<ZaloAuthUser | null>(() =>
+    getStoredZaloUser(),
+  );
+
+  useEffect(() => {
+    const handleAuthChange = () => setZaloUser(getStoredZaloUser());
+    window.addEventListener(ZALO_AUTH_CHANGED_EVENT, handleAuthChange);
+    return () =>
+      window.removeEventListener(ZALO_AUTH_CHANGED_EVENT, handleAuthChange);
+  }, []);
 
   return (
     <Box
       className="flex flex-row items-center gap-3 bg-transparent px-4 pb-2 pr-24"
       style={{
-        paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px) + 8px)",
+        paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px) + 2px)",
       }}
     >
       {showBack && (
@@ -38,7 +54,7 @@ function AppHeader({
           online
           story="default"
           size={36}
-          src={logo}
+          src={zaloUser?.avatar || logo}
         />
       )}
 

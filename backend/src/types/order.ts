@@ -7,6 +7,13 @@ export type OrderItem = {
   quantity: number;
 };
 
+export type DeliveryAddress = {
+  receiver: string;
+  phone: string;
+  detail: string;
+  note?: string;
+};
+
 export type Order = {
   id: string;
   items: OrderItem[];
@@ -17,6 +24,7 @@ export type Order = {
   // Không bắt buộc vì khách chưa đăng nhập vẫn thanh toán được, chỉ là
   // không được tích điểm.
   userId?: string;
+  address?: DeliveryAddress;
   // orderId do zmp-sdk's createOrder() (Checkout SDK) trả về, dùng để đối
   // chiếu với webhook callback của Zalo (chỉ biết orderId này, không biết id
   // đơn hàng nội bộ của mình).

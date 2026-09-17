@@ -8,8 +8,19 @@ import { ApiError } from "@/services/api";
 import { checkoutOrder, fetchOrderStatus } from "@/services/orders";
 import { addOrderToHistory } from "@/services/order-history";
 import { getStoredZaloUser } from "@/services/zalo-auth";
+import {
+  DeliveryAddress,
+  getStoredAddress,
+  saveAddress,
+} from "@/services/address";
 
-type CheckoutPhase = "idle" | "creating" | "waiting" | "success" | "failed";
+type CheckoutPhase =
+  | "idle"
+  | "address"
+  | "creating"
+  | "waiting"
+  | "success"
+  | "failed";
 
 // Lỗi từ zmp-sdk (vd. openOutApp) không phải Error chuẩn của JS, mà là
 // object dạng { code, message, api } — phải đọc riêng, không thì chỉ in
@@ -152,6 +163,11 @@ function CartPage() {
   const [mounted, setMounted] = useState(false);
   const [phase, setPhase] = useState<CheckoutPhase>("idle");
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [address, setAddress] = useState<DeliveryAddress>(
+    () =>
+      getStoredAddress() ?? { receiver: "", phone: "", detail: "", note: "" },
+  );
+  const [addressError, setAddressError] = useState<string | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
@@ -227,6 +243,26 @@ function CartPage() {
       });
   };
 
+  const handleOpenAddress = () => {
+    setCheckoutError(null);
+    setAddressError(null);
+    setPhase("address");
+  };
+
+  const handleConfirmAddress = () => {
+    if (
+      !address.receiver.trim() ||
+      !address.phone.trim() ||
+      !address.detail.trim()
+    ) {
+      setAddressError("Vui lòng nhập đầy đủ tên, số điện thoại và địa chỉ");
+      return;
+    }
+
+    saveAddress(address);
+    handleCheckout();
+  };
+
   const handleCheckout = async () => {
     setCheckoutError(null);
     setPhase("creating");
@@ -237,11 +273,12 @@ function CartPage() {
       order = await checkoutOrder(
         items.map((item) => ({ id: item.id, quantity: item.quantity })),
         getStoredZaloUser()?.id,
+        address,
       );
     } catch (err) {
       const detail = describeError(err);
       console.error("[checkout] tạo đơn thất bại:", detail);
-      setPhase("idle");
+      setPhase("address");
       setCheckoutError(
         err instanceof ApiError
           ? err.message
@@ -266,7 +303,7 @@ function CartPage() {
     } catch (err) {
       const detail = describeError(err);
       console.error("[checkout] openWebview thất bại:", detail, order.orderUrl);
-      setPhase("idle");
+      setPhase("address");
       setCheckoutError(
         `Không thể mở giao diện thanh toán (${detail}), vui lòng thử lại`,
       );
@@ -297,7 +334,7 @@ function CartPage() {
       <Box
         className="flex items-center gap-3"
         style={{
-          paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px) + 20px)",
+          paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px) + 10px)",
         }}
       >
         <button
@@ -389,7 +426,7 @@ function CartPage() {
 
               <button
                 type="button"
-                onClick={handleCheckout}
+                onClick={handleOpenAddress}
                 disabled={phase === "creating" || phase === "waiting"}
                 className="relative flex h-11 flex-none items-center justify-center gap-2 overflow-hidden rounded-full border-0 bg-[#1a1a1a] px-6 text-sm font-semibold text-white transition-transform active:scale-95 disabled:opacity-80"
               >
@@ -425,10 +462,94 @@ function CartPage() {
         )}
 
       {/* =========================
+          ADDRESS FORM OVERLAY
+      ========================== */}
+      {phase === "address" &&
+        createPortal(
+          <Box className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/50">
+            <Box
+              className="w-full max-w-md rounded-t-3xl bg-white p-5"
+              style={{
+                paddingBottom: "calc(20px + env(safe-area-inset-bottom))",
+              }}
+            >
+              <Text.Title size="normal" className="font-bold text-[#1a1a1a]">
+                Thông tin giao hàng
+              </Text.Title>
+              <Text size="small" className="mt-1 text-gray-500">
+                Nhập địa chỉ nhận hàng trước khi thanh toán
+              </Text>
+
+              <Box className="mt-4 flex flex-col gap-3">
+                <input
+                  type="text"
+                  placeholder="Họ và tên người nhận"
+                  value={address.receiver}
+                  onChange={(e) =>
+                    setAddress((prev) => ({ ...prev, receiver: e.target.value }))
+                  }
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
+                />
+                <input
+                  type="tel"
+                  placeholder="Số điện thoại"
+                  value={address.phone}
+                  onChange={(e) =>
+                    setAddress((prev) => ({ ...prev, phone: e.target.value }))
+                  }
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
+                />
+                <input
+                  type="text"
+                  placeholder="Địa chỉ nhận hàng (số nhà, đường, phường/xã...)"
+                  value={address.detail}
+                  onChange={(e) =>
+                    setAddress((prev) => ({ ...prev, detail: e.target.value }))
+                  }
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
+                />
+                <input
+                  type="text"
+                  placeholder="Ghi chú (không bắt buộc)"
+                  value={address.note}
+                  onChange={(e) =>
+                    setAddress((prev) => ({ ...prev, note: e.target.value }))
+                  }
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
+                />
+              </Box>
+
+              {(addressError || checkoutError) && (
+                <Text size="small" className="mt-3 text-red-500">
+                  {addressError || checkoutError}
+                </Text>
+              )}
+
+              <button
+                type="button"
+                onClick={handleConfirmAddress}
+                className="mt-4 w-full rounded-full border-0 bg-[#1a1a1a] py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98]"
+              >
+                Tiếp tục thanh toán
+              </button>
+              <button
+                type="button"
+                onClick={() => setPhase("idle")}
+                className="mt-2 w-full rounded-full border-0 bg-transparent py-2.5 text-sm font-medium text-gray-400 active:opacity-60"
+              >
+                Huỷ
+              </button>
+            </Box>
+          </Box>,
+          document.body,
+        )}
+
+      {/* =========================
           PAYMENT STATUS OVERLAY
       ========================== */}
       {phase !== "idle" &&
         phase !== "creating" &&
+        phase !== "address" &&
         createPortal(
           <Box className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 px-8">
             <Box className="w-full max-w-xs rounded-3xl bg-white p-6 text-center shadow-[0_20px_60px_rgba(0,0,0,0.25)]">

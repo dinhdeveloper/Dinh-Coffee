@@ -46,6 +46,7 @@ export async function checkout(req: Request, res: Response) {
   const body = req.body as {
     items?: { id: string; quantity: number }[];
     userId?: string;
+    address?: { receiver: string; phone: string; detail: string; note?: string };
   };
 
   if (!body.items || body.items.length === 0) {
@@ -91,6 +92,7 @@ export async function checkout(req: Request, res: Response) {
       status: "pending",
       createdAt: Date.now(),
       userId: body.userId,
+      address: body.address,
     };
 
     orders.set(order.id, order);
