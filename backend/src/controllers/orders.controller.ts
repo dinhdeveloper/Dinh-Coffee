@@ -137,12 +137,15 @@ export async function getOrderStatus(req: Request, res: Response) {
 // Đồng thời tạo sẵn 1 đơn hàng nội bộ (status "pending") để đối chiếu khi
 // nhận webhook callback từ Zalo sau này.
 export function createOrderMac(req: Request, res: Response) {
+  // TODO: khi có private key thật (Zalo Developers > Mini App > Payment),
+  // set ZMP_PAYMENT_PRIVATE_KEY trong backend/.env — mac ký ra mới được Zalo
+  // chấp nhận cho giao dịch thật. Thiếu key, mac vẫn được ký (bằng key rỗng)
+  // để nút "Đặt hàng" chạy được trên môi trường demo/dev, nhưng Zalo sẽ từ
+  // chối giao dịch thật do sai chữ ký.
   if (!env.zmpPayment.privateKey) {
-    res.status(500).json({
-      message:
-        "Server chưa cấu hình ZMP_PAYMENT_PRIVATE_KEY (private key thanh toán của Mini App)",
-    });
-    return;
+    console.warn(
+      "[orders] ZMP_PAYMENT_PRIVATE_KEY chưa được cấu hình — mac chỉ dùng được cho demo/dev, không hợp lệ với giao dịch thật.",
+    );
   }
 
   const body = req.body as { items?: { id: string; quantity: number }[] };

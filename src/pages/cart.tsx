@@ -1,13 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAtom, useAtomValue } from "jotai";
 import { createPortal } from "react-dom";
-import { checkTransaction, createOrder, events, EventName } from "zmp-sdk";
+import { openOutApp } from "zmp-sdk";
 import { Box, Icon, Page, Text, useNavigate } from "zmp-ui";
 import { CartItem, cartItemsAtom, cartTotalAtom } from "@/store/cart";
 import { ApiError } from "@/services/api";
-import { linkCheckoutOrder, prepareZaloOrder } from "@/services/orders";
+import { checkoutOrder, fetchOrderStatus } from "@/services/orders";
 
-type CheckoutPhase = "idle" | "creating" | "success" | "failed";
+type CheckoutPhase = "idle" | "creating" | "waiting" | "success" | "failed";
+
+const POLL_INTERVAL_MS = 3000;
+const POLL_TIMEOUT_MS = 5 * 60 * 1000;
 
 function formatPrice(value: number) {
   return `${value.toLocaleString("vi-VN")}đ`;
@@ -124,10 +127,15 @@ function CartPage() {
   const [mounted, setMounted] = useState(false);
   const [phase, setPhase] = useState<CheckoutPhase>("idle");
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const pollTimer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setMounted(true));
     return () => cancelAnimationFrame(raf);
+  }, []);
+
+  useEffect(() => {
+    return () => clearTimeout(pollTimer.current);
   }, []);
 
   const updateQuantity = (id: string, delta: number) => {
@@ -148,48 +156,65 @@ function CartPage() {
     }, 300);
   };
 
-  // Đúng theo tài liệu chính thức của Zalo (docs.zaloplatforms.com/docs/MA/
-  // checkoutSdk) và repo tutorial checkout-sdk-tutorial: createOrder() chỉ
-  // mở giao diện thanh toán — KHÔNG phải là kết quả cuối cùng. Kết quả thật
-  // lấy qua sự kiện PaymentDone rồi gọi checkTransaction() để xác nhận.
+  // ZaloPay Payment Gateway (docs.zalopay.vn): backend tạo đơn qua API
+  // /v2/create rồi trả về order_url, mobile mở order_url bằng openOutApp()
+  // để chuyển sang app/web ZaloPay thanh toán. Vì openOutApp() chỉ đảm bảo
+  // đã MỞ được app ZaloPay (không biết kết quả), sau khi mở phải poll
+  // fetchOrderStatus() để biết đơn đã "paid"/"failed" hay chưa.
+  const pollOrderStatus = (orderId: string, startedAt: number) => {
+    fetchOrderStatus(orderId)
+      .then((order) => {
+        if (order.status === "paid") {
+          setItems([]);
+          setPhase("success");
+          setTimeout(() => {
+            setPhase("idle");
+            navigate("/home");
+          }, 1600);
+          return;
+        }
+
+        if (order.status === "failed") {
+          setPhase("failed");
+          return;
+        }
+
+        if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
+          setPhase("failed");
+          return;
+        }
+
+        pollTimer.current = setTimeout(
+          () => pollOrderStatus(orderId, startedAt),
+          POLL_INTERVAL_MS,
+        );
+      })
+      .catch(() => {
+        if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
+          setPhase("failed");
+          return;
+        }
+        pollTimer.current = setTimeout(
+          () => pollOrderStatus(orderId, startedAt),
+          POLL_INTERVAL_MS,
+        );
+      });
+  };
+
   const handleCheckout = async () => {
     setCheckoutError(null);
     setPhase("creating");
+    clearTimeout(pollTimer.current);
 
     try {
-      const order = await prepareZaloOrder(
+      const order = await checkoutOrder(
         items.map((item) => ({ id: item.id, quantity: item.quantity })),
       );
 
-      events.once(EventName.PaymentDone, async (data) => {
-        try {
-          const result = await checkTransaction({ data });
+      await openOutApp({ url: order.orderUrl });
 
-          if (result.resultCode === 1 || result.resultCode === 0) {
-            setItems([]);
-            setPhase("success");
-            setTimeout(() => {
-              setPhase("idle");
-              navigate("/home");
-            }, 1600);
-          } else {
-            setPhase("failed");
-          }
-        } catch (err) {
-          setPhase("failed");
-        }
-      });
-
-      const { orderId: checkoutSdkOrderId } = await createOrder({
-        amount: order.amount,
-        desc: order.desc,
-        item: order.item,
-        mac: order.mac,
-      });
-
-      // Liên kết đơn nội bộ với giao dịch của Zalo để backend đối chiếu
-      // được khi nhận webhook callback.
-      linkCheckoutOrder(order.orderId, checkoutSdkOrderId).catch(() => {});
+      setPhase("waiting");
+      pollOrderStatus(order.orderId, Date.now());
     } catch (err) {
       setPhase("idle");
       setCheckoutError(
@@ -201,6 +226,11 @@ function CartPage() {
   };
 
   const handleCloseFailed = () => {
+    setPhase("idle");
+  };
+
+  const handleCancelWaiting = () => {
+    clearTimeout(pollTimer.current);
     setPhase("idle");
   };
 
@@ -312,7 +342,7 @@ function CartPage() {
               <button
                 type="button"
                 onClick={handleCheckout}
-                disabled={phase === "creating"}
+                disabled={phase === "creating" || phase === "waiting"}
                 className="relative flex h-11 flex-none items-center justify-center gap-2 overflow-hidden rounded-full border-0 bg-[#1a1a1a] px-6 text-sm font-semibold text-white transition-transform active:scale-95 disabled:opacity-80"
               >
                 <span
@@ -354,6 +384,28 @@ function CartPage() {
         createPortal(
           <Box className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 px-8">
             <Box className="w-full max-w-xs rounded-3xl bg-white p-6 text-center shadow-[0_20px_60px_rgba(0,0,0,0.25)]">
+              {phase === "waiting" && (
+                <>
+                  <Box className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gray-50">
+                    <span className="h-7 w-7 animate-spin rounded-full border-2 border-gray-200 border-t-[#1a1a1a]" />
+                  </Box>
+                  <Text.Title size="normal" className="mt-4 font-bold text-[#1a1a1a]">
+                    Đang chờ xác nhận thanh toán
+                  </Text.Title>
+                  <Text size="small" className="mt-1 text-gray-500">
+                    Hoàn tất thanh toán trên ZaloPay rồi quay lại đây
+                  </Text>
+
+                  <button
+                    type="button"
+                    onClick={handleCancelWaiting}
+                    className="mt-5 w-full rounded-full border-0 bg-transparent py-2.5 text-sm font-medium text-gray-400 active:opacity-60"
+                  >
+                    Đóng
+                  </button>
+                </>
+              )}
+
               {phase === "success" && (
                 <>
                   <Box

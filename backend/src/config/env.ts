@@ -5,8 +5,9 @@ export const env = {
   corsOrigin: process.env.CORS_ORIGIN ?? "*",
   zalopay: {
     // Fallback values are ZaloPay's own public sandbox demo credentials
-    // (published in https://github.com/zalopay-samples/quickstart-payment-gateway).
-    // Replace with your real merchant app_id/key1/key2 before going to production.
+    // (from the official zalopay-samples/quickstart-payment-gateway repo,
+    // still active). Replace with your real merchant app_id/key1/key2
+    // before going to production.
     appId: process.env.ZALOPAY_APP_ID ?? "15847",
     key1: process.env.ZALOPAY_KEY1 ?? "0U93tRzdWEkMLVNYH90aBu5ca0Psql8T",
     key2: process.env.ZALOPAY_KEY2 ?? "PurTcToVhvUt7vR2jO6He4lh3nfNEiks",
