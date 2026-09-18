@@ -27,7 +27,7 @@ export const env = {
   // trống GEMINI_API_KEY thì /api/assistant/chat trả 503.
   gemini: {
     apiKey: process.env.GEMINI_API_KEY ?? "",
-    model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
+    model: process.env.GEMINI_MODEL ?? "gemini-3.6-flash",
   },
   // Quy đổi điểm thưởng: số VNĐ tương ứng 1 điểm.
   pointsPerVnd: Number(process.env.POINTS_PER_VND ?? 10000),
