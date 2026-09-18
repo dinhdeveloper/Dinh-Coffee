@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/prisma";
+import { getReviewSummaries } from "@/data/reviews.store";
 
 export type StoreStory = {
   id: string;
   title: string;
   location?: string;
   rating?: number;
+  reviewCount?: number;
   price?: string;
   avatar: string;
   image: string;
@@ -15,25 +17,29 @@ export type StoreStory = {
   expiresAt: number;
 };
 
-function toStoreStory(row: {
-  id: string;
-  title: string;
-  location: string | null;
-  rating: number | null;
-  price: string | null;
-  avatar: string;
-  image: string;
-  thumbnail: string | null;
-  productId: string | null;
-  purchaseCount: number;
-  createdAt: Date;
-  expiresAt: Date;
-}): StoreStory {
+function toStoreStory(
+  row: {
+    id: string;
+    title: string;
+    location: string | null;
+    rating: number | null;
+    price: string | null;
+    avatar: string;
+    image: string;
+    thumbnail: string | null;
+    productId: string | null;
+    purchaseCount: number;
+    createdAt: Date;
+    expiresAt: Date;
+  },
+  reviewCount?: number,
+): StoreStory {
   return {
     id: row.id,
     title: row.title,
     location: row.location ?? undefined,
     rating: row.rating ?? undefined,
+    reviewCount,
     price: row.price ?? undefined,
     avatar: row.avatar,
     image: row.image,
@@ -53,7 +59,14 @@ export async function listActiveStoreStories(): Promise<StoreStory[]> {
     orderBy: { createdAt: "desc" },
   });
 
-  return rows.map(toStoreStory);
+  const productIds = rows
+    .map((row) => row.productId)
+    .filter((id): id is string => Boolean(id));
+  const summaries = await getReviewSummaries(productIds);
+
+  return rows.map((row) =>
+    toStoreStory(row, row.productId ? summaries[row.productId]?.count : undefined),
+  );
 }
 
 export async function createStoreStory(input: {

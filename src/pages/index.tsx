@@ -421,17 +421,14 @@ function HomePage() {
                       </Text.Title>
 
                       <Box className="mt-0.5 flex items-center gap-1">
-                        <Icon
-                          icon="zi-location"
-                          className="text-gray-400"
-                          size={14}
-                        />
+                        <Text size="small">⭐</Text>
 
                         <Text
                           size="xSmall"
                           className="truncate text-gray-500"
                         >
-                          {property.location}
+                          {(property.reviewCount ?? 0).toLocaleString("vi-VN")}{" "}
+                          đánh giá
                         </Text>
                       </Box>
                     </Box>

@@ -67,6 +67,7 @@ function CartItemCard({
   onIncrease,
   onDecrease,
   onRemove,
+  onOpenDetail,
 }: {
   item: CartItem;
   index: number;
@@ -75,12 +76,14 @@ function CartItemCard({
   onIncrease: () => void;
   onDecrease: () => void;
   onRemove: () => void;
+  onOpenDetail: () => void;
 }) {
   const lineTotal = parsePrice(item.price) * item.quantity;
 
   return (
     <Box
-      className="relative mb-3 flex gap-3 rounded-2xl border border-white/40 bg-white/15 p-3 shadow-[0_8px_24px_rgba(0,0,0,0.07)] backdrop-blur-xl transition-all duration-300 ease-out"
+      onClick={onOpenDetail}
+      className="relative mb-3 flex cursor-pointer gap-3 rounded-2xl border border-white/40 bg-white/15 p-3 shadow-[0_8px_24px_rgba(0,0,0,0.07)] backdrop-blur-xl transition-all duration-300 ease-out"
       style={{
         opacity: removing ? 0 : mounted ? 1 : 0,
         transform: removing
@@ -120,7 +123,10 @@ function CartItemCard({
             <button
               type="button"
               aria-label="Giảm số lượng"
-              onClick={onDecrease}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDecrease();
+              }}
               className="flex h-6 w-6 items-center justify-center rounded-full border-0 bg-gray-100 p-0 text-[#2f2f2f] transition-transform active:scale-90"
             >
               <Text className="font-bold leading-none">−</Text>
@@ -133,7 +139,10 @@ function CartItemCard({
             <button
               type="button"
               aria-label="Tăng số lượng"
-              onClick={onIncrease}
+              onClick={(e) => {
+                e.stopPropagation();
+                onIncrease();
+              }}
               className="flex h-6 w-6 items-center justify-center rounded-full border-0 bg-[#1a1a1a] p-0 text-white transition-transform active:scale-90"
             >
               <Text className="font-bold leading-none">+</Text>
@@ -149,7 +158,10 @@ function CartItemCard({
       <button
         type="button"
         aria-label="Xóa"
-        onClick={onRemove}
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove();
+        }}
         className="absolute right-2 top-2 flex h-7 w-7 flex-none items-center justify-center rounded-full border-0 bg-black/5 p-0 text-gray-400 transition-transform active:scale-90"
       >
         <Icon icon="zi-delete" size={14} />
@@ -482,6 +494,7 @@ function CartPage() {
               onIncrease={() => updateQuantity(item.id, 1)}
               onDecrease={() => updateQuantity(item.id, -1)}
               onRemove={() => removeItem(item.id)}
+              onOpenDetail={() => navigate(`/product/${item.id}`)}
             />
           ))}
         </Box>

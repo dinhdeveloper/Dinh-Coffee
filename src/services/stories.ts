@@ -7,6 +7,7 @@ export type StoreStory = {
   title: string;
   location?: string;
   rating?: number;
+  reviewCount?: number;
   price?: string;
   avatar: string;
   image: string;

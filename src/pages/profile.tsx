@@ -150,8 +150,6 @@ function ProfilePage() {
     showMessage("Đã đăng xuất khỏi tài khoản trong app.", "success");
   };
 
-  const comingSoon = () => showMessage("Tính năng sắp ra mắt.", "info");
-
   const menuItems: MenuItem[] = [
     {
       icon: "🧾",
@@ -188,7 +186,7 @@ function ProfilePage() {
       bg: "#F5EFE6",
       label: "Trợ giúp & liên hệ",
       description: "Câu hỏi thường gặp, hỗ trợ đặt hàng",
-      onClick: comingSoon,
+      onClick: () => navigate("/help"),
     },
   ];
 
