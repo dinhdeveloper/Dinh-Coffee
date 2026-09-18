@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Box, Icon, Page, Text } from "zmp-ui";
+import { useSetAtom } from "jotai";
+import { Box, Icon, Page, Text, useNavigate } from "zmp-ui";
 import {
   deleteNotificationApi,
   fetchNotifications,
@@ -10,6 +11,7 @@ import {
   NotificationType as NotifType,
 } from "@/services/notifications";
 import { getStoredZaloUser } from "@/services/zalo-auth";
+import { unreadNotificationCountAtom } from "@/store/notifications";
 
 const typeMeta: Record<NotifType, { icon: string; bg: string; cta: string }> = {
   order: { icon: "☕", bg: "#FFF0F5", cta: "Xem đơn hàng" },
@@ -113,6 +115,8 @@ function NotificationCard({
 }
 
 function NotificationPage() {
+  const navigate = useNavigate();
+  const setGlobalUnreadCount = useSetAtom(unreadNotificationCountAtom);
   const [notifications, setNotifications] = useState<NotifItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -127,7 +131,10 @@ function NotificationPage() {
 
     fetchNotifications(getStoredZaloUser()?.id)
       .then((data) => {
-        if (!cancelled) setNotifications(data);
+        if (!cancelled) {
+          setNotifications(data);
+          setGlobalUnreadCount(data.filter((item) => item.unread).length);
+        }
       })
       .catch(() => {
         if (!cancelled) setError(true);
@@ -166,9 +173,15 @@ function NotificationPage() {
   }, [notifications]);
 
   const markAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, unread: false } : item)),
-    );
+    setNotifications((prev) => {
+      const wasUnread = prev.find((item) => item.id === id)?.unread;
+      if (wasUnread) {
+        setGlobalUnreadCount((count) => Math.max(0, count - 1));
+      }
+      return prev.map((item) =>
+        item.id === id ? { ...item, unread: false } : item,
+      );
+    });
     markNotificationRead(id).catch(() => {
       // giữ trạng thái đã đọc trên UI dù API lỗi, tránh làm gián đoạn thao tác
     });
@@ -176,12 +189,18 @@ function NotificationPage() {
 
   const markAllAsRead = () => {
     setNotifications((prev) => prev.map((item) => ({ ...item, unread: false })));
+    setGlobalUnreadCount(0);
     markAllNotificationsRead(getStoredZaloUser()?.id).catch(() => {});
   };
 
   const deleteNotification = (id: string) => {
     setRemovingIds((prev) => [...prev, id]);
     deleteNotificationApi(id).catch(() => {});
+
+    const wasUnread = notifications.find((item) => item.id === id)?.unread;
+    if (wasUnread) {
+      setGlobalUnreadCount((count) => Math.max(0, count - 1));
+    }
 
     setTimeout(() => {
       setNotifications((prev) => prev.filter((item) => item.id !== id));
@@ -368,7 +387,13 @@ function NotificationPage() {
 
             <button
               type="button"
-              onClick={closeDetail}
+              onClick={() => {
+                if (activeNotification.type === "order" && activeNotification.orderId) {
+                  navigate(`/order/${activeNotification.orderId}`);
+                  return;
+                }
+                closeDetail();
+              }}
               className="mt-5 w-full rounded-full border-0 bg-[#1a1a1a] py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98]"
             >
               {typeMeta[activeNotification.type].cta}

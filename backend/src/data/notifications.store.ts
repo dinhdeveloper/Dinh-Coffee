@@ -29,6 +29,7 @@ function toNotification(row: {
   type: string;
   title: string;
   message: string;
+  orderId: string | null;
   unread: boolean;
   createdAt: Date;
 }): Notification {
@@ -37,6 +38,7 @@ function toNotification(row: {
     type: row.type as NotificationType,
     title: row.title,
     message: row.message,
+    orderId: row.orderId ?? undefined,
     unread: row.unread,
     time: formatRelativeTime(row.createdAt),
     group: isToday(row.createdAt) ? "Hôm nay" : "Trước đó",
@@ -81,6 +83,7 @@ export async function createNotification(input: {
   type: NotificationType;
   title: string;
   message: string;
+  orderId?: string;
 }): Promise<Notification> {
   const row = await prisma.notification.create({
     data: {
@@ -88,6 +91,7 @@ export async function createNotification(input: {
       type: input.type,
       title: input.title,
       message: input.message,
+      orderId: input.orderId,
     },
   });
 

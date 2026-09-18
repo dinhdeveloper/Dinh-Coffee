@@ -170,12 +170,14 @@ function ProductDetailPage() {
 
   if (status === "loading") {
     return (
-      <Page className="flex h-full min-h-0 flex-col overflow-y-auto bg-transparent hide-scrollbar">
-        <Box className="h-72 w-full flex-none animate-pulse bg-gray-200" />
-        <Box className="relative min-h-0 flex-1 rounded-t-[28px] bg-white px-5 pt-5">
+      <Page className="flex h-full min-h-0 flex-col overflow-hidden bg-transparent">
+        <Box className="h-[54vh] w-full flex-none animate-pulse bg-gray-200" />
+        <Box className="relative z-10 mx-4 -mt-9 flex-none rounded-[28px] bg-white p-4 shadow-[0_16px_40px_rgba(20,20,20,0.12)]">
           <Box className="h-4 w-20 animate-pulse rounded bg-gray-200" />
-          <Box className="mt-3 h-7 w-2/3 animate-pulse rounded bg-gray-200" />
-          <Box className="mt-4 h-4 w-full animate-pulse rounded bg-gray-200" />
+          <Box className="mt-3 h-6 w-2/3 animate-pulse rounded bg-gray-200" />
+        </Box>
+        <Box className="relative min-h-0 flex-1 rounded-t-[28px] bg-white px-5 pt-6" style={{ marginTop: 10 }}>
+          <Box className="h-4 w-full animate-pulse rounded bg-gray-200" />
           <Box className="mt-2 h-4 w-3/4 animate-pulse rounded bg-gray-200" />
         </Box>
       </Page>
@@ -245,52 +247,74 @@ function ProductDetailPage() {
   };
 
   return (
-    <Page className="flex h-full min-h-0 flex-col overflow-y-auto bg-transparent hide-scrollbar">
+    <Page
+      className="flex h-full min-h-0 flex-col overflow-y-auto bg-transparent hide-scrollbar"
+      style={{
+        paddingBottom: "calc(70px + env(safe-area-inset-bottom))",
+        scrollbarWidth: "none",
+        msOverflowStyle: "none",
+      }}
+    >
       {/* =========================
-          HERO IMAGE
+          HERO IMAGE — full-bleed, chiếm phần lớn màn hình
       ========================== */}
-      <Box className="relative h-72 w-full flex-none overflow-hidden">
+      <Box className="relative h-[42vh] w-full flex-none overflow-hidden">
         <img
           src={product.image}
           alt={product.title}
           className="h-full w-full object-cover transition-transform duration-700 ease-out"
           style={{
-            transform: mounted ? "scale(1)" : "scale(1.15)",
+            transform: mounted ? "scale(1)" : "scale(1.12)",
           }}
         />
-
-        <Box className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-black/10" />
+        <Box className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/0 to-black/25" />
 
         <Box
           className="absolute inset-x-0 top-0 flex items-center justify-between px-4"
           style={{
-            paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px))",
+            paddingTop: "calc(var(--zaui-safe-area-inset-top, 0px) + 8px)",
           }}
         >
           <button
             type="button"
             aria-label="Quay lại"
             onClick={() => navigate(-1)}
-            className="flex h-10 w-10 items-center justify-center rounded-full border-0 bg-white/90 text-[#141415] shadow-[0_8px_20px_rgba(0,0,0,0.15)] backdrop-blur-sm transition-transform active:scale-90"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/40 bg-white/25 text-white shadow-[0_8px_20px_rgba(0,0,0,0.15)] backdrop-blur-xl transition-transform active:scale-90"
           >
             <Icon icon="zi-arrow-left" size={22} />
+          </button>
+
+          <button
+            type="button"
+            aria-label="Yêu thích"
+            onClick={() => setLiked((prev) => !prev)}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/40 bg-white/25 text-white shadow-[0_8px_20px_rgba(0,0,0,0.15)] backdrop-blur-xl transition-transform active:scale-90"
+          >
+            <Icon
+              icon={liked ? "zi-heart-solid" : "zi-heart"}
+              size={20}
+              className={`transition-transform duration-200 ${liked ? "text-red-400" : "text-white"}`}
+              style={{ transform: liked ? "scale(1.15)" : "scale(1)" }}
+            />
           </button>
         </Box>
       </Box>
 
       {/* =========================
-          CONTENT CARD
+          LIQUID GLASS SUMMARY CARD
+          Thẻ kính nổi đè lên mép dưới ảnh — độ mờ đủ đậm (white/75) để chữ
+          luôn rõ trên mọi tấm ảnh, viền sáng mảnh phía trên mô phỏng ánh
+          phản chiếu của kính thật.
       ========================== */}
       <Box
-        className="relative min-h-0 flex-1 rounded-t-[28px] bg-white px-5 pb-28 pt-5 transition-transform duration-500 ease-out"
+        className="relative z-10 mx-4 -mt-9 flex-none rounded-[28px] border border-white/70 bg-white/75 p-4 shadow-[0_16px_40px_rgba(20,20,20,0.18)] backdrop-blur-2xl transition-all duration-500 ease-out"
         style={{
-          marginTop: -24,
-          transform: mounted ? "translateY(0)" : "translateY(24px)",
+          boxShadow:
+            "inset 0 1px 0 rgba(255,255,255,0.9), 0 16px 40px rgba(20,20,20,0.18)",
           opacity: mounted ? 1 : 0,
+          transform: mounted ? "translateY(0)" : "translateY(16px)",
         }}
       >
-        <Box className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-gray-200" />
-
         <Box className="flex items-start justify-between gap-3">
           <Box className="min-w-0 flex-1">
             <Text
@@ -305,7 +329,7 @@ function ProductDetailPage() {
             </Text.Title>
           </Box>
 
-          <Box className="flex flex-none items-center gap-1 rounded-full bg-[#F5EFE6] px-2.5 py-1.5">
+          <Box className="flex flex-none items-center gap-1 rounded-full bg-white/80 px-2.5 py-1.5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
             <Text size="small">⭐</Text>
             <Text size="small" className="font-semibold text-[#2f2f2f]">
               {product.rating}
@@ -316,14 +340,35 @@ function ProductDetailPage() {
           </Box>
         </Box>
 
-        {product.purchaseCount > 0 && (
-          <Text size="xSmall" className="mt-1 text-gray-400">
-            Đã bán {product.purchaseCount.toLocaleString("vi-VN")}
-          </Text>
-        )}
+        <Box className="mt-2 flex items-center justify-between">
+          {product.purchaseCount > 0 ? (
+            <Text size="xSmall" className="text-gray-500">
+              Đã bán {product.purchaseCount.toLocaleString("vi-VN")}
+            </Text>
+          ) : (
+            <span />
+          )}
 
+          <Text.Title size="small" className="font-bold text-red-500">
+            {product.price}
+          </Text.Title>
+        </Box>
+      </Box>
+
+      {/* =========================
+          CONTENT SHEET — nền trắng đặc để chữ luôn rõ, tách biệt khỏi
+          phần ảnh/kính mờ phía trên
+      ========================== */}
+      <Box
+        className="relative flex-1 rounded-t-[28px] bg-white px-5 pb-6 pt-5 transition-all duration-500 ease-out"
+        style={{
+          marginTop: 10,
+          opacity: mounted ? 1 : 0,
+          transform: mounted ? "translateY(0)" : "translateY(20px)",
+        }}
+      >
         <Text
-          className="mt-3 leading-6 text-gray-500 transition-all duration-500 ease-out"
+          className="leading-6 text-gray-500 transition-all duration-500 ease-out"
           style={{
             opacity: mounted ? 1 : 0,
             transform: mounted ? "translateY(0)" : "translateY(8px)",
@@ -493,20 +538,6 @@ function ProductDetailPage() {
             transform: mounted ? "translateY(0)" : "translateY(100%)",
           }}
         >
-          <button
-            type="button"
-            aria-label="Yêu thích"
-            onClick={() => setLiked((prev) => !prev)}
-            className="flex h-12 w-12 flex-none items-center justify-center rounded-full border border-gray-200 bg-white text-red-500 transition-transform active:scale-90"
-          >
-            <Icon
-              icon={liked ? "zi-heart-solid" : "zi-heart"}
-              size={22}
-              className="transition-transform duration-200"
-              style={{ transform: liked ? "scale(1.15)" : "scale(1)" }}
-            />
-          </button>
-
           <button
             type="button"
             aria-label="Giỏ hàng"

@@ -1,5 +1,9 @@
 export type OrderStatus = "pending" | "paid" | "failed";
 
+// Tiến độ chuẩn bị đơn sau khi đã thanh toán — tự động tiến 1 bước mỗi phút,
+// xem advanceOrderStage trong orders.store.ts.
+export type OrderStage = "confirmed" | "preparing" | "delivering" | "completed";
+
 export type OrderItem = {
   id: string;
   title: string;
@@ -19,6 +23,8 @@ export type Order = {
   items: OrderItem[];
   amount: number;
   status: OrderStatus;
+  stage?: OrderStage;
+  paidAt?: number;
   createdAt: number;
   // id người dùng Zalo đặt đơn — dùng để cộng điểm thưởng khi đơn "paid".
   // Không bắt buộc vì khách chưa đăng nhập vẫn thanh toán được, chỉ là

@@ -7,6 +7,7 @@ export type Notification = {
   type: NotificationType;
   title: string;
   message: string;
+  orderId?: string;
   time: string;
   group: "Hôm nay" | "Trước đó";
   unread: boolean;

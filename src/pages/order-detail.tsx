@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Box, Icon, Page, Text, useNavigate, useParams } from "zmp-ui";
-import { fetchOrderStatus, Order } from "@/services/orders";
+import { fetchOrderStatus, Order, OrderStage } from "@/services/orders";
 
 function formatPrice(value: number) {
   return `${value.toLocaleString("vi-VN")}đ`;
@@ -26,12 +26,31 @@ const STATUS_STYLE: Record<Order["status"], string> = {
   failed: "bg-red-50 text-red-500",
 };
 
+const STAGE_SEQUENCE: OrderStage[] = [
+  "confirmed",
+  "preparing",
+  "delivering",
+  "completed",
+];
+
+const STAGE_META: Record<OrderStage, { label: string; icon: string }> = {
+  confirmed: { label: "Quán đã nhận đơn", icon: "zi-check-circle" },
+  preparing: { label: "Quán đang làm món", icon: "zi-clock-1" },
+  delivering: { label: "Đang giao hàng", icon: "zi-location" },
+  completed: { label: "Hoàn tất", icon: "zi-check-circle-solid" },
+};
+
+// Tự cập nhật lại trang mỗi 1 phút khi đơn đang trong quá trình chuẩn bị,
+// để khớp với nhịp tiến độ 1 phút/bước mà backend tính (advanceOrderStage).
+const STAGE_POLL_INTERVAL_MS = 60_000;
+
 function OrderDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const pollTimer = useRef<ReturnType<typeof setInterval>>();
 
   useEffect(() => {
     if (!id) return;
@@ -55,6 +74,25 @@ function OrderDetailPage() {
       cancelled = true;
     };
   }, [id]);
+
+  // Đơn đã thanh toán nhưng chưa "completed" — quán vẫn đang xử lý, tự
+  // refetch mỗi phút để cập nhật tình trạng (quán nhận đơn → làm món →
+  // giao hàng → hoàn tất) mà không cần người dùng bấm làm mới thủ công.
+  useEffect(() => {
+    clearInterval(pollTimer.current);
+
+    if (!id || !order || order.status !== "paid" || order.stage === "completed") {
+      return;
+    }
+
+    pollTimer.current = setInterval(() => {
+      fetchOrderStatus(id)
+        .then(setOrder)
+        .catch(() => {});
+    }, STAGE_POLL_INTERVAL_MS);
+
+    return () => clearInterval(pollTimer.current);
+  }, [id, order]);
 
   return (
     <Page
@@ -138,6 +176,68 @@ function OrderDetailPage() {
               {formatPrice(order.amount)}
             </Text.Title>
           </Box>
+
+          {/* =========================
+              FULFILLMENT STAGE TRACKER
+          ========================== */}
+          {order.status === "paid" && order.stage && (
+            <Box className="mt-4 flex-none rounded-3xl bg-white p-4 shadow-[0_8px_24px_rgba(0,0,0,0.06)]">
+              <Text size="small" className="font-bold text-[#1a1a1a]">
+                Tình trạng đơn hàng
+              </Text>
+
+              <Box className="mt-4 flex flex-col">
+                {STAGE_SEQUENCE.map((stage, index) => {
+                  const currentIndex = STAGE_SEQUENCE.indexOf(order.stage!);
+                  const isDone = index < currentIndex;
+                  const isCurrent = index === currentIndex;
+                  const isLast = index === STAGE_SEQUENCE.length - 1;
+                  const meta = STAGE_META[stage];
+
+                  return (
+                    <Box key={stage} className="flex items-start gap-3">
+                      <Box className="flex flex-none flex-col items-center">
+                        <Box
+                          className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                            isDone || isCurrent
+                              ? "bg-[#1a1a1a] text-white"
+                              : "bg-gray-100 text-gray-300"
+                          }`}
+                        >
+                          <Icon icon={meta.icon as any} size={16} />
+                        </Box>
+                        {!isLast && (
+                          <Box
+                            className={`my-0.5 h-8 w-0.5 ${
+                              isDone ? "bg-[#1a1a1a]" : "bg-gray-100"
+                            }`}
+                          />
+                        )}
+                      </Box>
+
+                      <Box className={isLast ? "" : "pb-6"}>
+                        <Text
+                          size="small"
+                          className={
+                            isDone || isCurrent
+                              ? "mt-1 font-bold text-[#1a1a1a]"
+                              : "mt-1 font-medium text-gray-400"
+                          }
+                        >
+                          {meta.label}
+                        </Text>
+                        {isCurrent && !isLast && (
+                          <Text size="xSmall" className="mt-0.5 text-gray-400">
+                            Đang cập nhật, vui lòng chờ trong giây lát...
+                          </Text>
+                        )}
+                      </Box>
+                    </Box>
+                  );
+                })}
+              </Box>
+            </Box>
+          )}
 
           {/* =========================
               TRANSACTION INFO

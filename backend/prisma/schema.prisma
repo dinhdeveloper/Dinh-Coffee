@@ -26,14 +26,19 @@ model User {
 }
 
 model Order {
-  id                 String   @id // appTransId gửi cho ZaloPay
+  id                 String    @id // appTransId gửi cho ZaloPay
   userId             String?
   amount             Int
-  status             String   @default("pending") // "pending" | "paid" | "failed"
+  status             String    @default("pending") // "pending" | "paid" | "failed"
+  // Tình trạng chuẩn bị đơn sau khi đã "paid" — "confirmed" | "preparing" |
+  // "delivering" | "completed", tự động tiến 1 bước mỗi phút (xem
+  // advanceOrderStage trong orders.store.ts). null khi chưa thanh toán.
+  stage              String?
   items              Json // OrderItem[]
   address            Json? // DeliveryAddress snapshot lúc đặt hàng
   checkoutSdkOrderId String?
-  createdAt          DateTime @default(now())
+  paidAt             DateTime? // mốc thời gian bắt đầu tính tiến độ stage ở trên
+  createdAt          DateTime  @default(now())
 
   @@map("orders")
 }
@@ -44,6 +49,7 @@ model Notification {
   type      String // "order" | "promo" | "system"
   title     String
   message   String
+  orderId   String? // đơn hàng liên quan (type "order") — dùng để nhấn "Xem đơn hàng" đi thẳng vào chi tiết đơn
   unread    Boolean  @default(true)
   createdAt DateTime @default(now())
 

@@ -3,6 +3,10 @@ import type { DeliveryAddress } from "@/services/address";
 
 export type OrderStatus = "pending" | "paid" | "failed";
 
+// Tiến độ chuẩn bị đơn sau khi đã thanh toán — backend tự tiến 1 bước mỗi
+// phút (xem advanceOrderStage trong backend/src/data/orders.store.ts).
+export type OrderStage = "confirmed" | "preparing" | "delivering" | "completed";
+
 export type CheckoutItem = {
   id: string;
   quantity: number;
@@ -25,6 +29,7 @@ export type Order = {
   id: string;
   amount: number;
   status: OrderStatus;
+  stage?: OrderStage;
   items: OrderLineItem[];
   createdAt: number;
   address?: DeliveryAddress;
