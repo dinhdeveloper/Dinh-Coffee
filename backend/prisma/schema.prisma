@@ -164,3 +164,26 @@ model Product {
   @@index([categoryId])
   @@map("products")
 }
+
+// Banner tin tức/khuyến mãi hiển thị trên trang chủ (hiện đang hard-code 1
+// banner "Cà phê kể chuyện mỗi ngày" trỏ /story trong index.tsx) — chuyển
+// sang đây để đổi/thêm chương trình khuyến mãi mà không cần deploy lại app.
+// linkType + linkValue quyết định bấm vào banner đi đâu, tuỳ theo loại:
+// "story" -> CafeStory.id, "product" -> Product.id, "category" -> Category.id,
+// "url" -> mở link ngoài, "none" -> banner chỉ để xem, không bấm được.
+model Promotion {
+  id        String   @id @default(cuid())
+  title     String
+  subtitle  String?
+  content   String? // nội dung chi tiết hiển thị ở trang thông tin khuyến mãi khi bấm vào banner
+  image     String?
+  linkType  String   @default("none") // "story" | "product" | "category" | "url" | "none"
+  linkValue String? // id tương ứng linkType, hoặc URL nếu linkType = "url"
+  startAt   DateTime? // null = hiển thị ngay
+  endAt     DateTime? // null = không hết hạn — lọc theo now() ở tầng query
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@map("promotions")
+}

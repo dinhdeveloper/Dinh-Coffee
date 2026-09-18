@@ -16,7 +16,7 @@ type AppHeaderProps = {
 
 function AppHeader({
   title = "BoomBerry",
-  subtitle = "Một ly cà phê, một câu chuyện.",
+  subtitle = "248 Hoàng Hoa Thám, Bình Thạnh",
   showBack = false,
   showAvatar = true,
 }: AppHeaderProps) {
@@ -59,9 +59,16 @@ function AppHeader({
       )}
 
       <Box className="flex min-w-0 flex-col">
-        <Text.Title size="normal" className="truncate">
-          {title}
-        </Text.Title>
+        <button
+          type="button"
+          onClick={() => navigate("/branches")}
+          className="flex min-w-0 items-center gap-1 border-0 bg-transparent p-0 text-left"
+        >
+          <Text.Title size="normal" className="truncate">
+            {title}
+          </Text.Title>
+          <Icon icon="zi-chevron-right" size={16} className="shrink-0 text-gray-500" />
+        </button>
         {subtitle && (
           <Text
             size="small"

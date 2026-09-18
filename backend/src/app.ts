@@ -8,6 +8,7 @@ import notificationsRoutes from "@/routes/notifications.routes";
 import ordersRoutes from "@/routes/orders.routes";
 import paymentsRoutes from "@/routes/payments.routes";
 import productsRoutes from "@/routes/products.routes";
+import promotionsRoutes from "@/routes/promotions.routes";
 import storeStoriesRoutes from "@/routes/store-stories.routes";
 import usersRoutes from "@/routes/users.routes";
 
@@ -25,6 +26,7 @@ export function createApp() {
   app.use("/api/notifications", notificationsRoutes);
   app.use("/api/stories", storeStoriesRoutes);
   app.use("/api/cafe-story", cafeStoryRoutes);
+  app.use("/api/promotions", promotionsRoutes);
   app.use("/api/addresses", addressesRoutes);
   app.use("/api/orders", ordersRoutes);
   app.use("/api/payments", paymentsRoutes);

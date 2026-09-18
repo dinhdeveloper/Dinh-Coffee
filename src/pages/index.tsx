@@ -3,6 +3,7 @@ import { useAtomValue } from "jotai";
 import { Page, Text, Swiper, Box, Icon, useNavigate } from "zmp-ui";
 import { fetchProducts, Product } from "@/services/products";
 import { fetchStories, StoreStory } from "@/services/stories";
+import { fetchPromotions, Promotion } from "@/services/promotions";
 import { cartCountAtom } from "@/store/cart";
 import StoreStories from "@/components/store-stories";
 import ProductCard from "@/components/product-card";
@@ -34,6 +35,9 @@ function HomePage() {
   const [properties, setProperties] = useState<StoreStory[]>([]);
   const [propertiesLoading, setPropertiesLoading] = useState(true);
   const [propertiesError, setPropertiesError] = useState(false);
+
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [promotionsLoading, setPromotionsLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,26 +83,26 @@ function HomePage() {
     };
   }, []);
 
-  const slides = [
-    {
-      title: "Trà sữa hôm nay",
-      description: "Ưu đãi nhẹ cho một ngày thật ngọt.",
-      image:
-        "https://img.magnific.com/free-photo/composition-with-delicious-thai-tea_23-2148994319.jpg",
-    },
-    {
-      title: "Vị Thái thơm béo",
-      description: "Đậm vị trà, mịn vị sữa.",
-      image:
-        "https://img.magnific.com/free-photo/composition-with-delicious-thai-tea-beverage_23-2148994334.jpg",
-    },
-    {
-      title: "Berry signature",
-      description: "Một chút chua ngọt cho buổi chiều.",
-      image:
-        "https://img.magnific.com/free-photo/arrangement-with-delicious-traditional-thai-tea_23-2148994372.jpg",
-    },
-  ];
+  useEffect(() => {
+    let cancelled = false;
+
+    setPromotionsLoading(true);
+
+    fetchPromotions()
+      .then((data) => {
+        if (!cancelled) setPromotions(data);
+      })
+      .catch(() => {
+        if (!cancelled) setPromotions([]);
+      })
+      .finally(() => {
+        if (!cancelled) setPromotionsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const categories = [
     {
@@ -209,40 +213,47 @@ function HomePage() {
       {/* =========================
           BANNER / SWIPER
       ========================== */}
-      <Box className="mt-6 w-full flex-none">
-        <Swiper
-          autoplay
-          loop
-          className="overflow-hidden rounded-lg"
-        >
-          {slides.map((slide) => (
-            <Swiper.Slide key={slide.title}>
-              <Box className="relative h-40 overflow-hidden rounded-lg">
-                <img
-                  src={slide.image}
-                  alt={slide.title}
-                  className="h-full w-full object-cover"
-                />
-
-                <Box className="absolute inset-0 bg-gradient-to-t from-black/25 via-black/25 to-transparent" />
-
-                <Box className="absolute inset-0 flex flex-col justify-end p-5">
-                  <Text.Title
-                    size="large"
-                    className="text-white"
+      {promotionsLoading ? (
+        <Box className="mt-6 h-40 w-full flex-none animate-pulse rounded-lg bg-white/40" />
+      ) : (
+        promotions.length > 0 && (
+          <Box className="mt-6 w-full flex-none">
+            <Swiper autoplay loop className="overflow-hidden rounded-lg">
+              {promotions.map((promo) => (
+                <Swiper.Slide key={promo.id}>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/promotion/${promo.id}`)}
+                    className="relative block h-40 w-full overflow-hidden rounded-lg border-0 p-0 text-left"
                   >
-                    {slide.title}
-                  </Text.Title>
+                    {promo.image && (
+                      <img
+                        src={promo.image}
+                        alt={promo.title}
+                        className="h-full w-full object-cover"
+                      />
+                    )}
 
-                  <Text className="mt-2 max-w-[220px] text-white/85">
-                    {slide.description}
-                  </Text>
-                </Box>
-              </Box>
-            </Swiper.Slide>
-          ))}
-        </Swiper>
-      </Box>
+                    <Box className="absolute inset-0 bg-gradient-to-t from-black/25 via-black/25 to-transparent" />
+
+                    <Box className="absolute inset-0 flex flex-col justify-end p-5">
+                      <Text.Title size="large" className="text-white">
+                        {promo.title}
+                      </Text.Title>
+
+                      {promo.subtitle && (
+                        <Text className="mt-2 max-w-[220px] text-white/85">
+                          {promo.subtitle}
+                        </Text>
+                      )}
+                    </Box>
+                  </button>
+                </Swiper.Slide>
+              ))}
+            </Swiper>
+          </Box>
+        )
+      )}
 
       {/* =========================
           CATEGORIES
