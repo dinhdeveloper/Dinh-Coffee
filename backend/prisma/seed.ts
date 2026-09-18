@@ -92,7 +92,48 @@ const NOTIFICATIONS = [
   },
 ];
 
+const PROMOTIONS = [
+  {
+    title: "Trà sữa hôm nay",
+    subtitle: "Ưu đãi nhẹ cho một ngày thật ngọt.",
+    content:
+      "Giảm ngay 10.000đ cho mọi ly trà sữa trân châu khi đặt qua Mini App, áp dụng cho đơn hàng đầu tiên trong ngày.",
+    image:
+      "https://img.magnific.com/free-photo/composition-with-delicious-thai-tea_23-2148994319.jpg",
+    linkType: "product",
+    linkValue: "tra-sua-tran-chau",
+    sortOrder: 0,
+  },
+  {
+    title: "Vị Thái thơm béo",
+    subtitle: "Đậm vị trà, mịn vị sữa.",
+    content:
+      "Bộ sưu tập trà sữa phong cách Thái Lan chính thức ra mắt — đậm đà, béo mịn, giá không đổi.",
+    image:
+      "https://img.magnific.com/free-photo/composition-with-delicious-thai-tea-beverage_23-2148994334.jpg",
+    linkType: "category",
+    linkValue: "Trà sữa",
+    sortOrder: 1,
+  },
+  {
+    title: "Berry signature",
+    subtitle: "Một chút chua ngọt cho buổi chiều.",
+    content:
+      "Berry signature — thức uống chua ngọt tự nhiên, topping bồng bềnh, chỉ có tại BoomBerry.",
+    image:
+      "https://img.magnific.com/free-photo/arrangement-with-delicious-traditional-thai-tea_23-2148994372.jpg",
+    linkType: "product",
+    linkValue: "berry-signature",
+    sortOrder: 2,
+  },
+];
+
 async function main() {
+  if ((await prisma.promotion.count()) === 0) {
+    await prisma.promotion.createMany({ data: PROMOTIONS });
+    console.log("Seeded promotions");
+  }
+
   if ((await prisma.cafeStory.count()) === 0) {
     await prisma.cafeStory.create({ data: CAFE_STORY });
     console.log("Seeded cafe_stories");
