@@ -10,6 +10,8 @@ import paymentsRoutes from "@/routes/payments.routes";
 import productsRoutes from "@/routes/products.routes";
 import promotionsRoutes from "@/routes/promotions.routes";
 import storeStoriesRoutes from "@/routes/store-stories.routes";
+import assistantRoutes from "@/routes/assistant.routes";
+import featureCardsRoutes from "@/routes/feature-cards.routes";
 import usersRoutes from "@/routes/users.routes";
 
 export function createApp() {
@@ -25,6 +27,8 @@ export function createApp() {
   app.use("/api/products", productsRoutes);
   app.use("/api/notifications", notificationsRoutes);
   app.use("/api/stories", storeStoriesRoutes);
+  app.use("/api/assistant", assistantRoutes);
+  app.use("/api/feature-cards", featureCardsRoutes);
   app.use("/api/cafe-story", cafeStoryRoutes);
   app.use("/api/promotions", promotionsRoutes);
   app.use("/api/addresses", addressesRoutes);

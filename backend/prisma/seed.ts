@@ -68,6 +68,70 @@ const STORE_STORIES = [
   },
 ];
 
+const FEATURE_CARDS = [
+  {
+    title: "Cafe & Tea House",
+    location: "Bình Thạnh, Hồ Chí Minh",
+    rating: 4.8,
+    price: "35.000đ",
+    productId: "tra-sua-tran-chau",
+    purchaseCount: 324234,
+    image:
+      "https://img.magnific.com/free-photo/composition-with-delicious-thai-tea-beverage_23-2148994334.jpg",
+    thumbnail:
+      "https://img.magnific.com/free-photo/composition-with-delicious-thai-tea_23-2148994319.jpg",
+    avatar: "https://randomuser.me/api/portraits/men/32.jpg",
+  },
+  {
+    title: "The Coffee Corner",
+    location: "Quận 1, Hồ Chí Minh",
+    rating: 4.7,
+    price: "45.000đ",
+    productId: "ca-phe-muoi",
+    purchaseCount: 182567,
+    image: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800",
+    thumbnail:
+      "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400",
+    avatar: "https://randomuser.me/api/portraits/women/12.jpg",
+  },
+  {
+    title: "Matcha Garden",
+    location: "Thảo Điền, Thủ Đức",
+    rating: 4.9,
+    price: "55.000đ",
+    productId: "matcha-da-xay",
+    purchaseCount: 456892,
+    image: "https://images.unsplash.com/photo-1515823064-d6e0c04616a7?w=800",
+    thumbnail:
+      "https://images.unsplash.com/photo-1536256263959-770b48d82b0a?w=400",
+    avatar: "https://randomuser.me/api/portraits/men/22.jpg",
+  },
+  {
+    title: "Saigon Brew Coffee",
+    location: "Phú Nhuận, Hồ Chí Minh",
+    rating: 4.6,
+    price: "39.000đ",
+    productId: "tra-dao-cam-sa",
+    purchaseCount: 215430,
+    image: "https://images.unsplash.com/photo-1445116572660-236099ec97a0?w=800",
+    thumbnail:
+      "https://images.unsplash.com/photo-1498804103079-a6351b050096?w=400",
+    avatar: "https://randomuser.me/api/portraits/women/21.jpg",
+  },
+  {
+    title: "Milk Tea Station",
+    location: "Gò Vấp, Hồ Chí Minh",
+    rating: 4.5,
+    price: "42.000đ",
+    productId: "banh-flan-tra-sua",
+    purchaseCount: 298761,
+    image: "https://images.unsplash.com/photo-1558857563-b371033873b8?w=800",
+    thumbnail:
+      "https://images.unsplash.com/photo-1525385133512-2f3bdd039054?w=400",
+    avatar: "https://randomuser.me/api/portraits/men/18.jpg",
+  },
+];
+
 const CAFE_STORY = {
   title: "Mỗi ngày 1 câu chuyện",
   content: [
@@ -148,7 +212,16 @@ async function main() {
     console.log("Seeded cafe_stories");
   }
 
-  if ((await prisma.storeStory.count()) === 0) {
+  // Story chỉ sống 24h nên "bảng trống" không đủ để biết có cần seed lại —
+  // chỉ seed khi không còn story nào còn hạn, và dọn các dòng đã hết hạn.
+  const activeStories = await prisma.storeStory.count({
+    where: { expiresAt: { gt: new Date() } },
+  });
+
+  if (activeStories === 0) {
+    await prisma.storeStory.deleteMany({
+      where: { expiresAt: { lte: new Date() } },
+    });
     await prisma.storeStory.createMany({
       data: STORE_STORIES.map((story) => ({
         ...story,
@@ -156,6 +229,13 @@ async function main() {
       })),
     });
     console.log("Seeded store_stories");
+  }
+
+  if ((await prisma.featureCard.count()) === 0) {
+    await prisma.featureCard.createMany({
+      data: FEATURE_CARDS.map((card, index) => ({ ...card, sortOrder: index })),
+    });
+    console.log("Seeded feature_cards");
   }
 
   if ((await prisma.notification.count()) === 0) {

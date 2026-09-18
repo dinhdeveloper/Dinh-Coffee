@@ -3,9 +3,11 @@ import { useAtomValue } from "jotai";
 import { Page, Text, Swiper, Box, Icon, useNavigate } from "zmp-ui";
 import { fetchProducts, Product } from "@/services/products";
 import { fetchStories, StoreStory } from "@/services/stories";
+import { fetchFeatureCards, FeatureCard } from "@/services/feature-cards";
 import { fetchPromotions, Promotion } from "@/services/promotions";
 import { cartCountAtom } from "@/store/cart";
 import StoreStories from "@/components/store-stories";
+import FeatureCards from "@/components/feature-cards";
 import ProductCard from "@/components/product-card";
 import {
   getStoredZaloUser,
@@ -32,9 +34,12 @@ function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  const [properties, setProperties] = useState<StoreStory[]>([]);
-  const [propertiesLoading, setPropertiesLoading] = useState(true);
-  const [propertiesError, setPropertiesError] = useState(false);
+  const [stories, setStories] = useState<StoreStory[]>([]);
+  const [storiesLoading, setStoriesLoading] = useState(true);
+
+  const [featureCards, setFeatureCards] = useState<FeatureCard[]>([]);
+  const [featureCardsLoading, setFeatureCardsLoading] = useState(true);
+  const [featureCardsError, setFeatureCardsError] = useState(false);
 
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [promotionsLoading, setPromotionsLoading] = useState(true);
@@ -64,18 +69,39 @@ function HomePage() {
   useEffect(() => {
     let cancelled = false;
 
-    setPropertiesLoading(true);
-    setPropertiesError(false);
+    setStoriesLoading(true);
 
     fetchStories()
       .then((data) => {
-        if (!cancelled) setProperties(data);
+        if (!cancelled) setStories(data);
       })
       .catch(() => {
-        if (!cancelled) setPropertiesError(true);
+        if (!cancelled) setStories([]);
       })
       .finally(() => {
-        if (!cancelled) setPropertiesLoading(false);
+        if (!cancelled) setStoriesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setFeatureCardsLoading(true);
+    setFeatureCardsError(false);
+
+    fetchFeatureCards()
+      .then((data) => {
+        if (!cancelled) setFeatureCards(data);
+      })
+      .catch(() => {
+        if (!cancelled) setFeatureCardsError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setFeatureCardsLoading(false);
       });
 
     return () => {
@@ -152,12 +178,12 @@ function HomePage() {
           STORE STORIES (24H)
       ========================== */}
       <StoreStories
-        loading={propertiesLoading}
-        stores={properties.map((property) => ({
-          id: property.id,
-          title: property.title,
-          avatar: property.thumbnail ?? property.avatar,
-          image: property.image,
+        loading={storiesLoading}
+        stores={stories.map((story) => ({
+          id: story.id,
+          title: story.title,
+          avatar: story.thumbnail ?? story.avatar,
+          image: story.image,
         }))}
       />
 
@@ -350,115 +376,14 @@ function HomePage() {
       </Box>
 
       {/* =========================
-          PROPERTY / FEATURE CARD
+          FEATURE CARDS
       ========================== */}
-
-      <Box className="mt-7 w-full flex-none">
-        {propertiesLoading ? (
-          <Box
-            className="w-full animate-pulse rounded-3xl bg-gray-200"
-            style={{ aspectRatio: "1 / 1" }}
-          />
-        ) : propertiesError ? (
-          <Box className="flex flex-col items-center gap-2 rounded-3xl bg-white/50 py-10 text-center">
-            <Text size="small" className="text-gray-500">
-              Không tải được danh sách cửa hàng
-            </Text>
-          </Box>
-        ) : (
-          <Swiper
-            autoplay
-            loop
-            className="overflow-hidden rounded-3xl"
-          >
-            {properties.map((property) => (
-              <Swiper.Slide key={property.id}>
-                <Box
-                  onClick={() => navigate(`/product/${property.productId}`)}
-                  className="relative w-full flex-none cursor-pointer overflow-hidden rounded-3xl shadow-[0_8px_24px_rgba(0,0,0,0.1)] transition-transform duration-150 active:scale-[0.98]"
-                  style={{
-                    aspectRatio: "1 / 1",
-                  }}
-                >
-                  {/* Ảnh nền */}
-                  <img
-                    src={property.image}
-                    alt={property.title}
-                    className="absolute inset-0 h-full w-full object-cover"
-                  />
-
-                  {/* Badge top-left */}
-                  <Box className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-white/90 py-1 pl-1 pr-3 shadow-sm backdrop-blur-sm">
-                    <img
-                      src={property.avatar}
-                      alt=""
-                      className="h-6 w-6 rounded-full border-2 border-white object-cover"
-                    />
-
-                    <Text
-                      size="xSmall"
-                      className="font-medium text-[#2f2f2f]"
-                    >
-                      + {property.purchaseCount.toLocaleString("vi-VN")} lượt mua
-                    </Text>
-                  </Box>
-
-                  {/* Badge top-right */}
-                  <Box className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 shadow-sm backdrop-blur-sm">
-                    <Text size="small">⭐</Text>
-
-                    <Text
-                      size="small"
-                      className="font-semibold text-[#2f2f2f]"
-                    >
-                      {property.rating}
-                    </Text>
-                  </Box>
-
-                  {/* Card thông tin */}
-                  <Box className="absolute bottom-3 left-3 right-3 flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
-                    <img
-                      src={property.thumbnail ?? property.image}
-                      alt=""
-                      className="h-14 w-14 flex-none rounded-xl object-cover"
-                    />
-
-                    <Box className="min-w-0 flex-1">
-                      <Text.Title
-                        size="small"
-                        className="truncate text-[#1a1a1a]"
-                      >
-                        {property.title}
-                      </Text.Title>
-
-                      <Box className="mt-0.5 flex items-center gap-1">
-                        <Text size="small">⭐</Text>
-
-                        <Text
-                          size="xSmall"
-                          className="truncate text-gray-500"
-                        >
-                          {(property.reviewCount ?? 0).toLocaleString("vi-VN")}{" "}
-                          đánh giá
-                        </Text>
-                      </Box>
-                    </Box>
-
-                    <Box className="flex-none rounded-xl border border-gray-200 px-3 py-2">
-                      <Text
-                        size="small"
-                        className="font-semibold text-[#1a1a1a]"
-                      >
-                        {property.price}
-                      </Text>
-                    </Box>
-                  </Box>
-                </Box>
-              </Swiper.Slide>
-            ))}
-          </Swiper>
-        )}
-      </Box>
+      <FeatureCards
+        cards={featureCards}
+        loading={featureCardsLoading}
+        error={featureCardsError}
+        onSelect={(card) => card.productId && navigate(`/product/${card.productId}`)}
+      />
     </Page>
   );
 }

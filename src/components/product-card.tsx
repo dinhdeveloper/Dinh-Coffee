@@ -68,7 +68,7 @@ function ProductCard({
   return (
     <Box
       onClick={onClick}
-      className={`group relative cursor-pointer rounded-2xl bg-white shadow-[0_0_16px_rgba(0,0,0,0.1)] transition-transform duration-150 active:scale-[0.96] ${className}`}
+      className={`group relative cursor-pointer glass-card rounded-2xl transition-transform duration-150 active:scale-[0.96] ${className}`}
       style={style}
     >
       <Box className="relative w-full" style={{ aspectRatio: "4 / 3" }}>
@@ -121,7 +121,7 @@ function ProductCard({
         type="button"
         aria-label="Thêm vào giỏ hàng"
         onClick={handleAddToCart}
-        className="absolute -bottom-2.5 -right-2.5 flex h-9 w-9 items-center justify-center rounded-full border-0 bg-[#1a1a1a] text-white shadow-[0_4px_12px_rgba(0,0,0,0.3)] ring-4 ring-white transition-transform duration-150 active:scale-90"
+        className="absolute -bottom-2.5 -right-2.5 flex h-9 w-9 items-center justify-center rounded-full border-0 bg-[#1a1a1a] text-white shadow-[0_4px_12px_rgba(0,0,0,0.25)] ring-4 ring-white/80 transition-transform duration-150 active:scale-90"
       >
         <Icon icon={added ? "zi-check" : "zi-plus"} size={15} />
       </button>

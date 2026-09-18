@@ -125,3 +125,50 @@ body,
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
+/* Liquid glass card: viền mảnh, bóng đổ lan rộng rất nhẹ + highlight bên trong. */
+.glass-card {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.92) 0%,
+    rgba(252, 252, 251, 0.86) 100%
+  );
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.95),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.03),
+    0 1px 2px rgba(20, 20, 20, 0.05),
+    0 8px 24px rgba(20, 20, 20, 0.07),
+    0 24px 48px -12px rgba(20, 20, 20, 0.08);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+@keyframes assistant-bot-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes assistant-bot-busy {
+  0%,
+  100% {
+    transform: rotate(-8deg);
+  }
+  50% {
+    transform: rotate(8deg);
+  }
+}
+
+.assistant-bot-float {
+  display: inline-flex;
+  animation: assistant-bot-float 2.6s ease-in-out infinite;
+}
+
+.assistant-bot-busy {
+  display: inline-flex;
+  animation: assistant-bot-busy 0.6s ease-in-out infinite;
+}

@@ -23,6 +23,12 @@ export const env = {
   zmpPayment: {
     privateKey: process.env.ZMP_PAYMENT_PRIVATE_KEY ?? "",
   },
+  // Trợ lý AI gọi món (Claude). Để trống ANTHROPIC_API_KEY thì endpoint
+  // /api/assistant/chat trả 503 và app ẩn phần trả lời của bot.
+  anthropic: {
+    apiKey: process.env.ANTHROPIC_API_KEY ?? "",
+    model: process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5-20251001",
+  },
   // Quy đổi điểm thưởng: số VNĐ tương ứng 1 điểm.
   pointsPerVnd: Number(process.env.POINTS_PER_VND ?? 10000),
   // Giá trị quy đổi khi TIÊU điểm thưởng thành giảm giá — mặc định 100đ/điểm

@@ -107,6 +107,26 @@ model StoreStory {
   @@map("store_stories")
 }
 
+// Thẻ nổi bật (carousel lớn ở trang chủ) — độc lập với StoreStory: không hết
+// hạn theo 24h, bật/tắt bằng isActive và sắp xếp bằng sortOrder.
+model FeatureCard {
+  id            String   @id @default(cuid())
+  title         String
+  location      String?
+  rating        Float?
+  price         String?
+  avatar        String
+  image         String
+  thumbnail     String?
+  productId     String?
+  purchaseCount Int      @default(0)
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  @@map("feature_cards")
+}
+
 // Đánh giá sản phẩm — 1 user có thể đánh giá nhiều sản phẩm khác nhau.
 model Review {
   id        String   @id @default(cuid())

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { Box, Icon, Page, Text, useNavigate, useParams } from "zmp-ui";
@@ -15,6 +15,7 @@ import {
   requestZaloProfile,
 } from "@/services/zalo-auth";
 import { cartCountAtom, cartItemsAtom, cartLineKey } from "@/store/cart";
+import { assistantIntentAtom } from "@/store/assistant";
 import { favoriteIdsAtom } from "@/store/favorites";
 import ProductCard from "@/components/product-card";
 import {
@@ -66,6 +67,8 @@ function ProductDetailPage() {
   const [reviewError, setReviewError] = useState<string | null>(null);
   const setCartItems = useSetAtom(cartItemsAtom);
   const cartCount = useAtomValue(cartCountAtom);
+  const [assistantIntent, setAssistantIntent] = useAtom(assistantIntentAtom);
+  const [autoAdd, setAutoAdd] = useState(false);
 
   useEffect(() => {
     if (!id) {
@@ -184,6 +187,62 @@ function ProductDetailPage() {
     const timer = setTimeout(() => setMounted(true), 400);
     return () => clearTimeout(timer);
   }, [status]);
+
+  // Bot trợ lý giao lệnh: lần lượt chọn từng tuỳ chọn (có độ trễ để người
+  // dùng thấy như có người thao tác), rồi bật autoAdd để bấm "thêm vào giỏ"
+  // bằng state mới nhất (qua addToCartRef vì handleAddToCart khai báo sau).
+  const addToCartRef = useRef<() => void>();
+  const intentPending =
+    status === "ready" &&
+    !!product &&
+    assistantIntent?.status === "pending" &&
+    assistantIntent.productId === product.id;
+
+  useEffect(() => {
+    if (!intentPending || !assistantIntent || !product) return;
+
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    let delay = 500;
+    const step = (fn: () => void, gap = 600) => {
+      timers.push(setTimeout(fn, delay));
+      delay += gap;
+    };
+
+    if (assistantIntent.quantity > 1) {
+      step(() => setQuantity(assistantIntent.quantity));
+    }
+    const opts = isCustomizableCategory(product.category)
+      ? assistantIntent.options
+      : undefined;
+    if (opts?.size) step(() => setSelectedSize(opts.size!));
+    if (opts?.sugar) step(() => setSelectedSugar(opts.sugar!));
+    if (opts?.ice) step(() => setSelectedIce(opts.ice!));
+    for (const topping of opts?.toppings ?? []) {
+      step(() =>
+        setSelectedToppings((prev) =>
+          prev.includes(topping) ? prev : [...prev, topping],
+        ),
+      );
+    }
+    step(() => setAutoAdd(true), 400);
+
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intentPending]);
+
+  useEffect(() => {
+    if (!autoAdd) return;
+
+    addToCartRef.current?.();
+    setAutoAdd(false);
+    // Không clear timer: setAutoAdd(false) ở trên làm effect chạy lại cleanup.
+    setTimeout(
+      () =>
+        setAssistantIntent((prev) => (prev ? { ...prev, status: "done" } : prev)),
+      900,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoAdd]);
 
   const baseUnitPrice = useMemo(
     () => (product ? parsePrice(product.price) : 0),
@@ -304,6 +363,7 @@ function ProductDetailPage() {
     setAdded(true);
     setTimeout(() => setAdded(false), 1600);
   };
+  addToCartRef.current = handleAddToCart;
 
   return (
     <Page
@@ -492,9 +552,9 @@ function ProductDetailPage() {
                   key={opt.value}
                   type="button"
                   onClick={() => setSelectedSize(opt.value)}
-                  className={`flex-1 rounded-xl border py-2 text-sm font-semibold transition-colors ${
+                  className={`flex-1 rounded-xl border-[1.5px] py-2 text-sm font-semibold transition-colors ${
                     selectedSize === opt.value
-                      ? "border-[#1a1a1a] bg-[#1a1a1a] text-white"
+                      ? "border-[#a78bfa] bg-white text-[#2f2f2f]"
                       : "border-gray-200 bg-white text-[#2f2f2f]"
                   }`}
                 >
@@ -502,7 +562,7 @@ function ProductDetailPage() {
                   {opt.surcharge > 0 && (
                     <Text
                       size="xSmall"
-                      className={selectedSize === opt.value ? "text-white/70" : "text-gray-400"}
+                      className={selectedSize === opt.value ? "text-gray-400" : "text-gray-400"}
                     >
                       +{(opt.surcharge / 1000).toFixed(0)}k
                     </Text>
@@ -521,9 +581,9 @@ function ProductDetailPage() {
                   key={opt.value}
                   type="button"
                   onClick={() => setSelectedSugar(opt.value)}
-                  className={`flex-none rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors ${
+                  className={`flex-none rounded-full border-[1.5px] px-4 py-1.5 text-sm font-semibold transition-colors ${
                     selectedSugar === opt.value
-                      ? "border-[#1a1a1a] bg-[#1a1a1a] text-white"
+                      ? "border-[#a78bfa] bg-white text-[#2f2f2f]"
                       : "border-gray-200 bg-white text-[#2f2f2f]"
                   }`}
                 >
@@ -542,9 +602,9 @@ function ProductDetailPage() {
                   key={opt.value}
                   type="button"
                   onClick={() => setSelectedIce(opt.value)}
-                  className={`flex-none rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors ${
+                  className={`flex-none rounded-full border-[1.5px] px-4 py-1.5 text-sm font-semibold transition-colors ${
                     selectedIce === opt.value
-                      ? "border-[#1a1a1a] bg-[#1a1a1a] text-white"
+                      ? "border-[#a78bfa] bg-white text-[#2f2f2f]"
                       : "border-gray-200 bg-white text-[#2f2f2f]"
                   }`}
                 >
@@ -562,14 +622,16 @@ function ProductDetailPage() {
                     key={opt.value}
                     type="button"
                     onClick={() => toggleTopping(opt.value)}
-                    className={`flex items-center justify-between gap-3 rounded-xl border px-3.5 py-2.5 transition-colors ${
-                      checked ? "border-[#1a1a1a] bg-gray-50" : "border-gray-200 bg-white"
+                    className={`flex items-center justify-between gap-3 rounded-xl border-[1.5px] px-3.5 py-2.5 transition-colors ${
+                      checked
+                        ? "border-[#a78bfa] bg-white"
+                        : "border-gray-200 bg-white"
                     }`}
                   >
                     <Box className="flex items-center gap-2.5">
                       <Box
                         className={`flex h-5 w-5 flex-none items-center justify-center rounded-md border-2 ${
-                          checked ? "border-[#1a1a1a] bg-[#1a1a1a]" : "border-gray-300"
+                          checked ? "border-[#a78bfa] bg-[#a78bfa]" : "border-gray-300"
                         }`}
                       >
                         {checked && (

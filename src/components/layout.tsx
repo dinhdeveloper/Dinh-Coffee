@@ -9,6 +9,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import HomePage from "@/pages/index";
 import NotificationPage from "@/pages/notification";
 import ProfilePage from "@/pages/profile";
+import AssistantBot from "@/components/assistant-bot";
 import AppHeader from "@/components/app-header";
 import Navigation from "@/components/bottom_navigation";
 import appBackground from "@/static/app-background.svg";
@@ -109,6 +110,7 @@ const Layout = () => {
             </AnimationRoutes>
           </Box>
           <NavigationGate />
+          <AssistantBot />
         </Box>
       </ZMPRouter>
     </App>
