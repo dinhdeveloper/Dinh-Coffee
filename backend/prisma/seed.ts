@@ -98,10 +98,13 @@ const PROMOTIONS = [
     subtitle: "Ưu đãi nhẹ cho một ngày thật ngọt.",
     content:
       "Giảm ngay 10.000đ cho mọi ly trà sữa trân châu khi đặt qua Mini App, áp dụng cho đơn hàng đầu tiên trong ngày.",
+    discountLabel: "-10.000đ",
+    code: "TRASUA10K",
     image:
       "https://img.magnific.com/free-photo/composition-with-delicious-thai-tea_23-2148994319.jpg",
     linkType: "product",
     linkValue: "tra-sua-tran-chau",
+    endAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     sortOrder: 0,
   },
   {
@@ -109,10 +112,13 @@ const PROMOTIONS = [
     subtitle: "Đậm vị trà, mịn vị sữa.",
     content:
       "Bộ sưu tập trà sữa phong cách Thái Lan chính thức ra mắt — đậm đà, béo mịn, giá không đổi.",
+    discountLabel: "MỚI",
+    code: null,
     image:
       "https://img.magnific.com/free-photo/composition-with-delicious-thai-tea-beverage_23-2148994334.jpg",
     linkType: "category",
     linkValue: "Trà sữa",
+    endAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
     sortOrder: 1,
   },
   {
@@ -120,10 +126,13 @@ const PROMOTIONS = [
     subtitle: "Một chút chua ngọt cho buổi chiều.",
     content:
       "Berry signature — thức uống chua ngọt tự nhiên, topping bồng bềnh, chỉ có tại BoomBerry.",
+    discountLabel: "-20%",
+    code: "BERRY20",
     image:
       "https://img.magnific.com/free-photo/arrangement-with-delicious-traditional-thai-tea_23-2148994372.jpg",
     linkType: "product",
     linkValue: "berry-signature",
+    endAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
     sortOrder: 2,
   },
 ];

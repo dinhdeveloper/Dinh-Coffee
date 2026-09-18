@@ -5,6 +5,8 @@ export type Promotion = {
   title: string;
   subtitle: string | null;
   content: string | null;
+  discountLabel: string | null;
+  code: string | null;
   image: string | null;
   linkType: string;
   linkValue: string | null;
@@ -18,6 +20,8 @@ function toPromotion(row: {
   title: string;
   subtitle: string | null;
   content: string | null;
+  discountLabel: string | null;
+  code: string | null;
   image: string | null;
   linkType: string;
   linkValue: string | null;
@@ -30,6 +34,8 @@ function toPromotion(row: {
     title: row.title,
     subtitle: row.subtitle,
     content: row.content,
+    discountLabel: row.discountLabel,
+    code: row.code,
     image: row.image,
     linkType: row.linkType,
     linkValue: row.linkValue,

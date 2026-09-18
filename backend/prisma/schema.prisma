@@ -172,18 +172,20 @@ model Product {
 // "story" -> CafeStory.id, "product" -> Product.id, "category" -> Category.id,
 // "url" -> mở link ngoài, "none" -> banner chỉ để xem, không bấm được.
 model Promotion {
-  id        String   @id @default(cuid())
-  title     String
-  subtitle  String?
-  content   String? // nội dung chi tiết hiển thị ở trang thông tin khuyến mãi khi bấm vào banner
-  image     String?
-  linkType  String   @default("none") // "story" | "product" | "category" | "url" | "none"
-  linkValue String? // id tương ứng linkType, hoặc URL nếu linkType = "url"
-  startAt   DateTime? // null = hiển thị ngay
-  endAt     DateTime? // null = không hết hạn — lọc theo now() ở tầng query
-  isActive  Boolean  @default(true)
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
+  id            String    @id @default(cuid())
+  title         String
+  subtitle      String?
+  content       String? // nội dung chi tiết hiển thị ở trang thông tin khuyến mãi khi bấm vào banner
+  discountLabel String? // nhãn ưu đãi nổi bật, vd "-20%", "Giảm 10.000đ" — hiển thị to ở trang chi tiết
+  code          String? // mã voucher để nhập khi thanh toán, null nếu ưu đãi tự động áp dụng
+  image         String?
+  linkType      String    @default("none") // "story" | "product" | "category" | "url" | "none"
+  linkValue     String? // id tương ứng linkType, hoặc URL nếu linkType = "url"
+  startAt       DateTime? // null = hiển thị ngay
+  endAt         DateTime? // null = không hết hạn — lọc theo now() ở tầng query
+  isActive      Boolean   @default(true)
+  sortOrder     Int       @default(0)
+  createdAt     DateTime  @default(now())
 
   @@map("promotions")
 }

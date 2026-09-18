@@ -5,6 +5,8 @@ export type Promotion = {
   title: string;
   subtitle: string | null;
   content: string | null;
+  discountLabel: string | null;
+  code: string | null;
   image: string | null;
   linkType: "story" | "product" | "category" | "url" | "none";
   linkValue: string | null;
