@@ -2,8 +2,8 @@ import { Request, Response } from "express";
 import {
   findOrderByCheckoutSdkOrderId,
   getOrder,
+  markOrderFailed,
   markOrderPaid,
-  setOrderStatus,
 } from "@/data/orders.store";
 import { verifyZaloPayCallbackMac } from "@/lib/zalopay";
 import { verifyCallbackMac, verifyOverallMac } from "@/lib/zmp-payment";
@@ -89,7 +89,7 @@ export async function zmpCheckoutCallback(req: Request, res: Response) {
   if (data.resultCode === 1) {
     await markOrderPaid(order);
   } else {
-    await setOrderStatus(order.id, "failed");
+    await markOrderFailed(order);
   }
 
   res.json({ returnCode: 1, returnMessage: "success" });

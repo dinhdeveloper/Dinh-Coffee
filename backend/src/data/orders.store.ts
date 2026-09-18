@@ -9,6 +9,9 @@ import { Order, OrderStage } from "@/types/order";
 function toOrder(row: {
   id: string;
   userId: string | null;
+  subtotal: number;
+  discount: number;
+  pointsUsed: number;
   amount: number;
   status: string;
   stage: string | null;
@@ -21,6 +24,9 @@ function toOrder(row: {
   return {
     id: row.id,
     userId: row.userId ?? undefined,
+    subtotal: row.subtotal,
+    discount: row.discount,
+    pointsUsed: row.pointsUsed,
     amount: row.amount,
     status: row.status as Order["status"],
     stage: (row.stage as OrderStage | null) ?? undefined,
@@ -128,6 +134,9 @@ export async function findOrderByCheckoutSdkOrderId(
 export async function createOrder(input: {
   id: string;
   userId?: string;
+  subtotal: number;
+  discount?: number;
+  pointsUsed?: number;
   amount: number;
   items: Order["items"];
   address?: Order["address"];
@@ -136,6 +145,9 @@ export async function createOrder(input: {
     data: {
       id: input.id,
       userId: input.userId,
+      subtotal: input.subtotal,
+      discount: input.discount ?? 0,
+      pointsUsed: input.pointsUsed ?? 0,
       amount: input.amount,
       status: "pending",
       items: input.items as unknown as Prisma.InputJsonValue,
@@ -159,8 +171,45 @@ export async function setCheckoutSdkOrderId(
   return row ? toOrder(row) : null;
 }
 
-export async function setOrderStatus(id: string, status: Order["status"]) {
-  await prisma.order.update({ where: { id }, data: { status } });
+// Đơn thanh toán thất bại — nếu đơn có dùng điểm thưởng để giảm giá thì hoàn
+// lại điểm đó cho khách (điểm đã bị trừ ngay lúc tạo đơn ở checkout()).
+// updateMany với where loại trừ "paid"/"failed" đảm bảo chỉ hoàn điểm đúng 1
+// lần dù webhook và polling cùng báo thất bại.
+export async function markOrderFailed(order: Order) {
+  if (order.status !== "pending") return;
+
+  const result = await prisma.order.updateMany({
+    where: { id: order.id, status: "pending" },
+    data: { status: "failed" },
+  });
+
+  if (result.count === 0) return;
+
+  order.status = "failed";
+
+  if (order.userId && order.pointsUsed > 0) {
+    await addPoints(order.userId, order.pointsUsed);
+  }
+}
+
+// Khách tự huỷ đơn đang "pending" (đặt nhầm, đổi ý...) — cùng cơ chế hoàn
+// điểm như markOrderFailed ở trên, tách trạng thái riêng ("cancelled") để
+// phân biệt với thanh toán thất bại do ZaloPay từ chối.
+export async function markOrderCancelled(order: Order) {
+  if (order.status !== "pending") return;
+
+  const result = await prisma.order.updateMany({
+    where: { id: order.id, status: "pending" },
+    data: { status: "cancelled" },
+  });
+
+  if (result.count === 0) return;
+
+  order.status = "cancelled";
+
+  if (order.userId && order.pointsUsed > 0) {
+    await addPoints(order.userId, order.pointsUsed);
+  }
 }
 
 // Dùng chung cho mọi nơi xác nhận đơn đã thanh toán (webhook ZaloPay, webhook

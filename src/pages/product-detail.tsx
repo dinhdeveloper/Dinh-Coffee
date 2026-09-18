@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { Box, Icon, Page, Text, useNavigate, useParams } from "zmp-ui";
 import { ApiError } from "@/services/api";
 import { fetchProductById, fetchProducts, Product } from "@/services/products";
@@ -14,8 +14,21 @@ import {
   getStoredZaloUser,
   requestZaloProfile,
 } from "@/services/zalo-auth";
-import { cartCountAtom, cartItemsAtom } from "@/store/cart";
+import { cartCountAtom, cartItemsAtom, cartLineKey } from "@/store/cart";
+import { favoriteIdsAtom } from "@/store/favorites";
 import ProductCard from "@/components/product-card";
+import {
+  buildCartLineId,
+  computeOptionsSurcharge,
+  describeOptions,
+  isCustomizableCategory,
+  LevelOption,
+  LEVEL_OPTIONS,
+  SizeOption,
+  SIZE_OPTIONS,
+  ToppingOption,
+  TOPPING_OPTIONS,
+} from "@/services/customization";
 
 function parsePrice(price: string) {
   return Number(price.replace(/[^\d]/g, ""));
@@ -34,8 +47,12 @@ function ProductDetailPage() {
     "loading" | "ready" | "not-found" | "error"
   >("loading");
   const [mounted, setMounted] = useState(false);
-  const [liked, setLiked] = useState(false);
+  const [favoriteIds, setFavoriteIds] = useAtom(favoriteIdsAtom);
   const [quantity, setQuantity] = useState(1);
+  const [selectedSize, setSelectedSize] = useState<SizeOption>("M");
+  const [selectedSugar, setSelectedSugar] = useState<LevelOption>("100");
+  const [selectedIce, setSelectedIce] = useState<LevelOption>("100");
+  const [selectedToppings, setSelectedToppings] = useState<ToppingOption[]>([]);
   const [added, setAdded] = useState(false);
   const [related, setRelated] = useState<Product[]>([]);
   const [relatedLoading, setRelatedLoading] = useState(true);
@@ -59,6 +76,11 @@ function ProductDetailPage() {
     let cancelled = false;
     setStatus("loading");
     setMounted(false);
+    setQuantity(1);
+    setSelectedSize("M");
+    setSelectedSugar("100");
+    setSelectedIce("100");
+    setSelectedToppings([]);
 
     fetchProductById(id)
       .then((data) => {
@@ -163,7 +185,7 @@ function ProductDetailPage() {
     return () => clearTimeout(timer);
   }, [status]);
 
-  const unitPrice = useMemo(
+  const baseUnitPrice = useMemo(
     () => (product ? parsePrice(product.price) : 0),
     [product],
   );
@@ -218,13 +240,47 @@ function ProductDetailPage() {
     );
   }
 
+  const isFavorite = favoriteIds.includes(product.id);
+  const customizable = isCustomizableCategory(product.category);
+
+  const handleToggleFavorite = () => {
+    setFavoriteIds((prev) =>
+      prev.includes(product.id)
+        ? prev.filter((favId) => favId !== product.id)
+        : [...prev, product.id],
+    );
+  };
+
+  const toggleTopping = (value: ToppingOption) => {
+    setSelectedToppings((prev) =>
+      prev.includes(value)
+        ? prev.filter((item) => item !== value)
+        : [...prev, value],
+    );
+  };
+
+  const options = customizable
+    ? {
+        size: selectedSize,
+        sugar: selectedSugar,
+        ice: selectedIce,
+        toppings: selectedToppings,
+      }
+    : undefined;
+  const surcharge = computeOptionsSurcharge(options);
+  const finalUnitPrice = baseUnitPrice + surcharge;
+  const optionsLabel = describeOptions(options);
+
   const handleAddToCart = () => {
+    const lineId = buildCartLineId(product.id, options);
+    const priceString = formatPrice(finalUnitPrice);
+
     setCartItems((prev) => {
-      const existing = prev.find((item) => item.id === product.id);
+      const existing = prev.find((item) => cartLineKey(item) === lineId);
 
       if (existing) {
         return prev.map((item) =>
-          item.id === product.id
+          cartLineKey(item) === lineId
             ? { ...item, quantity: item.quantity + quantity }
             : item,
         );
@@ -234,10 +290,13 @@ function ProductDetailPage() {
         ...prev,
         {
           id: product.id,
+          lineId,
           title: product.title,
-          price: product.price,
+          price: priceString,
           image: product.image,
           quantity,
+          options,
+          optionsLabel,
         },
       ];
     });
@@ -287,14 +346,14 @@ function ProductDetailPage() {
           <button
             type="button"
             aria-label="Yêu thích"
-            onClick={() => setLiked((prev) => !prev)}
+            onClick={handleToggleFavorite}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-white/40 bg-white/25 text-white shadow-[0_8px_20px_rgba(0,0,0,0.15)] backdrop-blur-xl transition-transform active:scale-90"
           >
             <Icon
-              icon={liked ? "zi-heart-solid" : "zi-heart"}
+              icon={isFavorite ? "zi-heart-solid" : "zi-heart"}
               size={20}
-              className={`transition-transform duration-200 ${liked ? "text-red-400" : "text-white"}`}
-              style={{ transform: liked ? "scale(1.15)" : "scale(1)" }}
+              className={`transition-transform duration-200 ${isFavorite ? "text-red-400" : "text-white"}`}
+              style={{ transform: isFavorite ? "scale(1.15)" : "scale(1)" }}
             />
           </button>
         </Box>
@@ -413,6 +472,123 @@ function ProductDetailPage() {
             </button>
           </Box>
         </Box>
+
+        {/* =========================
+            TUỲ CHỌN MÓN — size, mức đường/đá, topping
+        ========================== */}
+        {customizable && (
+          <Box
+            className="mt-6 transition-all duration-500 ease-out"
+            style={{
+              opacity: mounted ? 1 : 0,
+              transform: mounted ? "translateY(0)" : "translateY(8px)",
+              transitionDelay: "150ms",
+            }}
+          >
+            <Text className="font-semibold text-[#2f2f2f]">Kích cỡ</Text>
+            <Box className="mt-2 flex gap-2">
+              {SIZE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setSelectedSize(opt.value)}
+                  className={`flex-1 rounded-xl border py-2 text-sm font-semibold transition-colors ${
+                    selectedSize === opt.value
+                      ? "border-[#1a1a1a] bg-[#1a1a1a] text-white"
+                      : "border-gray-200 bg-white text-[#2f2f2f]"
+                  }`}
+                >
+                  {opt.label}
+                  {opt.surcharge > 0 && (
+                    <Text
+                      size="xSmall"
+                      className={selectedSize === opt.value ? "text-white/70" : "text-gray-400"}
+                    >
+                      +{(opt.surcharge / 1000).toFixed(0)}k
+                    </Text>
+                  )}
+                </button>
+              ))}
+            </Box>
+
+            <Text className="mt-4 font-semibold text-[#2f2f2f]">Mức đường</Text>
+            <Box
+              className="mt-2 flex gap-2 overflow-x-auto pb-1"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+            >
+              {LEVEL_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setSelectedSugar(opt.value)}
+                  className={`flex-none rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors ${
+                    selectedSugar === opt.value
+                      ? "border-[#1a1a1a] bg-[#1a1a1a] text-white"
+                      : "border-gray-200 bg-white text-[#2f2f2f]"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </Box>
+
+            <Text className="mt-4 font-semibold text-[#2f2f2f]">Mức đá</Text>
+            <Box
+              className="mt-2 flex gap-2 overflow-x-auto pb-1"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+            >
+              {LEVEL_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setSelectedIce(opt.value)}
+                  className={`flex-none rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors ${
+                    selectedIce === opt.value
+                      ? "border-[#1a1a1a] bg-[#1a1a1a] text-white"
+                      : "border-gray-200 bg-white text-[#2f2f2f]"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </Box>
+
+            <Text className="mt-4 font-semibold text-[#2f2f2f]">Thêm topping</Text>
+            <Box className="mt-2 flex flex-col gap-2">
+              {TOPPING_OPTIONS.map((opt) => {
+                const checked = selectedToppings.includes(opt.value);
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => toggleTopping(opt.value)}
+                    className={`flex items-center justify-between gap-3 rounded-xl border px-3.5 py-2.5 transition-colors ${
+                      checked ? "border-[#1a1a1a] bg-gray-50" : "border-gray-200 bg-white"
+                    }`}
+                  >
+                    <Box className="flex items-center gap-2.5">
+                      <Box
+                        className={`flex h-5 w-5 flex-none items-center justify-center rounded-md border-2 ${
+                          checked ? "border-[#1a1a1a] bg-[#1a1a1a]" : "border-gray-300"
+                        }`}
+                      >
+                        {checked && (
+                          <Icon icon="zi-check" size={12} className="text-white" />
+                        )}
+                      </Box>
+                      <Text size="small" className="text-[#2f2f2f]">
+                        {opt.label}
+                      </Text>
+                    </Box>
+                    <Text size="small" className="font-semibold text-gray-500">
+                      +{formatPrice(opt.price)}
+                    </Text>
+                  </button>
+                );
+              })}
+            </Box>
+          </Box>
+        )}
 
         {/* =========================
             ĐÁNH GIÁ
@@ -557,7 +733,7 @@ function ProductDetailPage() {
               Tổng tiền
             </Text>
             <Text.Title size="normal" className="font-bold text-[#1a1a1a]">
-              {formatPrice(unitPrice * quantity)}
+              {formatPrice(finalUnitPrice * quantity)}
             </Text.Title>
           </Box>
 

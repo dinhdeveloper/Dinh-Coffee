@@ -21,12 +21,14 @@ const STATUS_LABEL: Record<Order["status"], string> = {
   paid: "Đã thanh toán",
   pending: "Đang xử lý",
   failed: "Thất bại",
+  cancelled: "Đã huỷ",
 };
 
 const STATUS_STYLE: Record<Order["status"], string> = {
   paid: "bg-green-50 text-green-600",
   pending: "bg-yellow-50 text-yellow-600",
   failed: "bg-red-50 text-red-500",
+  cancelled: "bg-gray-100 text-gray-500",
 };
 
 function OrdersPage() {

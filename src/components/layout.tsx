@@ -23,6 +23,7 @@ import OrderDetailPage from "@/pages/order-detail";
 import ScanPayPage from "@/pages/scan-pay";
 import AddressPage from "@/pages/address";
 import HelpPage from "@/pages/help";
+import FavoritesPage from "@/pages/favorites";
 
 const SUB_PAGE_PREFIXES = [
   "/product/",
@@ -35,6 +36,7 @@ const SUB_PAGE_PREFIXES = [
   "/scan-pay",
   "/address",
   "/help",
+  "/favorites",
 ];
 
 const AppHeaderGate = () => {
@@ -58,7 +60,8 @@ const NavigationGate = () => {
     location.pathname.startsWith("/order/") ||
     location.pathname.startsWith("/scan-pay") ||
     location.pathname.startsWith("/address") ||
-    location.pathname.startsWith("/help");
+    location.pathname.startsWith("/help") ||
+    location.pathname.startsWith("/favorites");
 
   if (hideNavigation) return null;
 
@@ -94,6 +97,7 @@ const Layout = () => {
               <Route path="/scan-pay" element={<ScanPayPage />} />
               <Route path="/address" element={<AddressPage />} />
               <Route path="/help" element={<HelpPage />} />
+              <Route path="/favorites" element={<FavoritesPage />} />
             </AnimationRoutes>
           </Box>
           <NavigationGate />

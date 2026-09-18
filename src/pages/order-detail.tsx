@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Box, Icon, Page, Text, useNavigate, useParams } from "zmp-ui";
-import { fetchOrderStatus, Order, OrderStage } from "@/services/orders";
+import { createPortal } from "react-dom";
+import { Box, Icon, Page, Text, useNavigate, useParams, useSnackbar } from "zmp-ui";
+import { cancelOrder, fetchOrderStatus, Order, OrderStage } from "@/services/orders";
 
 function formatPrice(value: number) {
   return `${value.toLocaleString("vi-VN")}đ`;
@@ -18,12 +19,21 @@ const STATUS_LABEL: Record<Order["status"], string> = {
   paid: "Thanh toán thành công",
   pending: "Đang chờ thanh toán",
   failed: "Thanh toán thất bại",
+  cancelled: "Đã huỷ",
 };
 
 const STATUS_STYLE: Record<Order["status"], string> = {
   paid: "bg-green-50 text-green-600",
   pending: "bg-yellow-50 text-yellow-600",
   failed: "bg-red-50 text-red-500",
+  cancelled: "bg-gray-100 text-gray-500",
+};
+
+const STATUS_VISUAL: Record<Order["status"], { bg: string; icon: string; color: string }> = {
+  paid: { bg: "bg-green-50", icon: "zi-check-circle-solid", color: "text-green-500" },
+  pending: { bg: "bg-yellow-50", icon: "zi-clock-1", color: "text-yellow-500" },
+  failed: { bg: "bg-red-50", icon: "zi-close-circle-solid", color: "text-red-500" },
+  cancelled: { bg: "bg-gray-100", icon: "zi-close-circle", color: "text-gray-400" },
 };
 
 const STAGE_SEQUENCE: OrderStage[] = [
@@ -47,9 +57,12 @@ const STAGE_POLL_INTERVAL_MS = 60_000;
 function OrderDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { openSnackbar } = useSnackbar();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setInterval>>();
 
   useEffect(() => {
@@ -93,6 +106,30 @@ function OrderDetailPage() {
 
     return () => clearInterval(pollTimer.current);
   }, [id, order]);
+
+  const handleCancelOrder = async () => {
+    if (!id || cancelling) return;
+    setCancelling(true);
+
+    try {
+      const updated = await cancelOrder(id);
+      setOrder(updated);
+      setShowCancelConfirm(false);
+      openSnackbar({
+        text: "Đã huỷ đơn hàng",
+        type: "success",
+        position: "top",
+      });
+    } catch {
+      openSnackbar({
+        text: "Không huỷ được đơn hàng, vui lòng thử lại",
+        type: "error",
+        position: "top",
+      });
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   return (
     <Page
@@ -142,30 +179,12 @@ function OrderDetailPage() {
         <>
           <Box className="mt-5 flex-none rounded-3xl bg-white p-5 text-center shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
             <Box
-              className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${
-                order.status === "paid"
-                  ? "bg-green-50"
-                  : order.status === "failed"
-                    ? "bg-red-50"
-                    : "bg-yellow-50"
-              }`}
+              className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${STATUS_VISUAL[order.status].bg}`}
             >
               <Icon
-                icon={
-                  order.status === "paid"
-                    ? "zi-check-circle-solid"
-                    : order.status === "failed"
-                      ? "zi-close-circle-solid"
-                      : "zi-clock-1"
-                }
+                icon={STATUS_VISUAL[order.status].icon as any}
                 size={34}
-                className={
-                  order.status === "paid"
-                    ? "text-green-500"
-                    : order.status === "failed"
-                      ? "text-red-500"
-                      : "text-yellow-500"
-                }
+                className={STATUS_VISUAL[order.status].color}
               />
             </Box>
 
@@ -175,6 +194,16 @@ function OrderDetailPage() {
             <Text.Title size="large" className="mt-1 font-bold text-[#1a1a1a]">
               {formatPrice(order.amount)}
             </Text.Title>
+
+            {order.status === "pending" && (
+              <button
+                type="button"
+                onClick={() => setShowCancelConfirm(true)}
+                className="mt-4 w-full rounded-full border border-red-200 bg-red-50 py-2.5 text-sm font-semibold text-red-500 transition-transform active:scale-[0.98]"
+              >
+                Huỷ đơn hàng
+              </button>
+            )}
           </Box>
 
           {/* =========================
@@ -274,6 +303,28 @@ function OrderDetailPage() {
               </Text>
             </Box>
 
+            {order.discount > 0 && (
+              <>
+                <Box className="mt-2 flex items-center justify-between">
+                  <Text size="small" className="text-gray-500">
+                    Tạm tính
+                  </Text>
+                  <Text size="small" className="font-semibold text-[#1a1a1a]">
+                    {formatPrice(order.subtotal)}
+                  </Text>
+                </Box>
+
+                <Box className="mt-2 flex items-center justify-between">
+                  <Text size="small" className="text-gray-500">
+                    Giảm giá ({order.pointsUsed.toLocaleString("vi-VN")} điểm)
+                  </Text>
+                  <Text size="small" className="font-semibold text-red-500">
+                    -{formatPrice(order.discount)}
+                  </Text>
+                </Box>
+              </>
+            )}
+
             <Box className="mt-2 flex items-center justify-between">
               <Text size="small" className="text-gray-500">
                 Trạng thái
@@ -315,9 +366,9 @@ function OrderDetailPage() {
               Sản phẩm ({order.items.length})
             </Text>
 
-            {order.items.map((item) => (
+            {order.items.map((item, index) => (
               <Box
-                key={item.id}
+                key={`${item.id}-${index}`}
                 className="mt-3 flex items-center justify-between gap-3"
               >
                 <Box className="min-w-0 flex-1">
@@ -327,6 +378,11 @@ function OrderDetailPage() {
                   <Text size="xSmall" className="text-gray-400">
                     {item.price} × {item.quantity}
                   </Text>
+                  {item.optionsLabel && (
+                    <Text size="xSmall" className="text-gray-400">
+                      {item.optionsLabel}
+                    </Text>
+                  )}
                 </Box>
                 <Text size="small" className="flex-none font-bold text-[#1a1a1a]">
                   {formatPrice(parsePrice(item.price) * item.quantity)}
@@ -336,6 +392,46 @@ function OrderDetailPage() {
           </Box>
         </>
       )}
+
+      {/* =========================
+          CANCEL CONFIRM OVERLAY
+      ========================== */}
+      {showCancelConfirm &&
+        createPortal(
+          <Box className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 px-8">
+            <Box className="w-full max-w-xs rounded-3xl bg-white p-6 text-center shadow-[0_20px_60px_rgba(0,0,0,0.25)]">
+              <Box className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-50">
+                <Icon icon="zi-close-circle" size={34} className="text-red-500" />
+              </Box>
+              <Text.Title size="normal" className="mt-4 font-bold text-[#1a1a1a]">
+                Huỷ đơn hàng này?
+              </Text.Title>
+              <Text size="small" className="mt-1 text-gray-500">
+                Đơn chưa thanh toán sẽ được huỷ, điểm thưởng đã dùng (nếu có) sẽ
+                được hoàn lại ngay.
+              </Text>
+
+              <button
+                type="button"
+                onClick={handleCancelOrder}
+                disabled={cancelling}
+                className="mt-5 w-full rounded-full border-0 bg-red-500 py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98] disabled:opacity-80"
+              >
+                {cancelling ? "Đang huỷ..." : "Huỷ đơn"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowCancelConfirm(false)}
+                disabled={cancelling}
+                className="mt-2 w-full rounded-full border-0 bg-transparent py-2.5 text-sm font-medium text-gray-400 active:opacity-60"
+              >
+                Đóng
+              </button>
+            </Box>
+          </Box>,
+          document.body,
+        )}
     </Page>
   );
 }

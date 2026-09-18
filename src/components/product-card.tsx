@@ -1,8 +1,9 @@
 import { CSSProperties, useState } from "react";
-import { useSetAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
 import { Box, Icon, Text } from "zmp-ui";
 import { Product } from "@/services/products";
 import { cartItemsAtom } from "@/store/cart";
+import { favoriteIdsAtom } from "@/store/favorites";
 
 function ProductCard({
   product,
@@ -16,19 +17,35 @@ function ProductCard({
   style?: CSSProperties;
 }) {
   const setCartItems = useSetAtom(cartItemsAtom);
+  const [favoriteIds, setFavoriteIds] = useAtom(favoriteIdsAtom);
   const [added, setAdded] = useState(false);
+  const isFavorite = favoriteIds.includes(product.id);
+
+  const handleToggleFavorite = (event: React.MouseEvent) => {
+    event.stopPropagation();
+
+    setFavoriteIds((prev) =>
+      prev.includes(product.id)
+        ? prev.filter((id) => id !== product.id)
+        : [...prev, product.id],
+    );
+  };
 
   const handleAddToCart = (event: React.MouseEvent) => {
     event.stopPropagation();
 
+    // Thêm nhanh từ danh sách không có bước chọn size/đường/đá, nên chỉ gộp
+    // vào dòng "mặc định" (không có lineId) của sản phẩm này — tránh cộng
+    // nhầm số lượng vào một dòng đã tuỳ biến (vd. Size L) được thêm từ trang
+    // chi tiết sản phẩm.
     setCartItems((prev) => {
-      const existing = prev.find((item) => item.id === product.id);
+      const existing = prev.find(
+        (item) => item.id === product.id && !item.lineId,
+      );
 
       if (existing) {
         return prev.map((item) =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item,
+          item === existing ? { ...item, quantity: item.quantity + 1 } : item,
         );
       }
 
@@ -70,6 +87,19 @@ function ProductCard({
             </Text>
           </Box>
         )}
+
+        <button
+          type="button"
+          aria-label={isFavorite ? "Bỏ yêu thích" : "Yêu thích"}
+          onClick={handleToggleFavorite}
+          className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full border-0 bg-white/90 p-0 shadow-sm backdrop-blur-sm transition-transform active:scale-90"
+        >
+          <Icon
+            icon={isFavorite ? "zi-heart-solid" : "zi-heart"}
+            size={14}
+            className={isFavorite ? "text-red-500" : "text-gray-400"}
+          />
+        </button>
       </Box>
 
       <Box className="py-2.5 pl-3 pr-8">

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useAtomValue } from "jotai";
 import { Avatar, Box, Icon, Page, Text, useNavigate, useSnackbar } from "zmp-ui";
 
 import {
@@ -11,6 +12,7 @@ import {
 } from "@/services/zalo-auth";
 import { fetchUser } from "@/services/users";
 import { DeliveryAddress, fetchAddresses, getDefaultAddress } from "@/services/address";
+import { favoriteCountAtom } from "@/store/favorites";
 
 type MenuItem = {
   icon: string;
@@ -23,6 +25,7 @@ type MenuItem = {
 function ProfilePage() {
   const navigate = useNavigate();
   const { openSnackbar } = useSnackbar();
+  const favoriteCount = useAtomValue(favoriteCountAtom);
   const [user, setUser] = useState<ZaloAuthUser | null>(() =>
     getStoredZaloUser(),
   );
@@ -157,6 +160,16 @@ function ProfilePage() {
       label: "Đơn hàng của tôi",
       description: "Theo dõi đơn đang giao & lịch sử mua hàng",
       onClick: () => navigate("/orders"),
+    },
+    {
+      icon: "❤️",
+      bg: "#FDECEC",
+      label: "Sản phẩm yêu thích",
+      description:
+        favoriteCount > 0
+          ? `${favoriteCount} món đã lưu`
+          : "Món ăn bạn đã thích sẽ lưu ở đây",
+      onClick: () => navigate("/favorites"),
     },
     {
       icon: "📷",

@@ -3,11 +3,16 @@ import { useAtom, useAtomValue } from "jotai";
 import { createPortal } from "react-dom";
 import { events, EventName, openWebview } from "zmp-sdk";
 import { Box, Icon, Page, Text, useNavigate } from "zmp-ui";
-import { CartItem, cartItemsAtom, cartTotalAtom } from "@/store/cart";
+import { CartItem, cartItemsAtom, cartLineKey, cartTotalAtom } from "@/store/cart";
 import { ApiError } from "@/services/api";
 import { checkoutOrder, fetchOrderStatus } from "@/services/orders";
 import { addOrderToHistory } from "@/services/order-history";
-import { getStoredZaloUser, requestZaloProfile } from "@/services/zalo-auth";
+import { fetchUser } from "@/services/users";
+import {
+  getStoredZaloUser,
+  requestZaloProfile,
+  ZALO_AUTH_CHANGED_EVENT,
+} from "@/services/zalo-auth";
 import {
   AddressInput,
   DeliveryAddress,
@@ -50,6 +55,13 @@ function describeError(err: unknown): string {
 
 const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS = 5 * 60 * 1000;
+
+// Phải khớp với env.pointsRedeemValueVnd / MIN_PAYABLE_AMOUNT ở backend
+// (backend/src/controllers/orders.controller.ts) — chỉ dùng để ước tính mức
+// giảm giá hiển thị trước cho người dùng, số tiền thật vẫn do backend tính
+// và validate lại khi tạo đơn.
+const POINTS_REDEEM_VALUE_VND = 100;
+const MIN_PAYABLE_AMOUNT = 1000;
 
 function formatPrice(value: number) {
   return `${value.toLocaleString("vi-VN")}đ`;
@@ -116,6 +128,11 @@ function CartItemCard({
           <Text size="xSmall" className="mt-0.5 text-gray-400">
             {item.price} / món
           </Text>
+          {item.optionsLabel && (
+            <Text size="xSmall" className="mt-0.5 line-clamp-1 text-gray-400">
+              {item.optionsLabel}
+            </Text>
+          )}
         </Box>
 
         <Box className="flex items-center justify-between">
@@ -195,6 +212,8 @@ function CartPage() {
     null,
   );
   const [addressError, setAddressError] = useState<string | null>(null);
+  const [userPoints, setUserPoints] = useState<number | null>(null);
+  const [usePoints, setUsePoints] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
@@ -206,21 +225,51 @@ function CartPage() {
     return () => clearTimeout(pollTimer.current);
   }, []);
 
-  const updateQuantity = (id: string, delta: number) => {
+  useEffect(() => {
+    const loadPoints = () => {
+      const user = getStoredZaloUser();
+      if (!user) {
+        setUserPoints(null);
+        return;
+      }
+      fetchUser(user.id)
+        .then((data) => setUserPoints(data.points))
+        .catch(() => setUserPoints(null));
+    };
+
+    loadPoints();
+    window.addEventListener(ZALO_AUTH_CHANGED_EVENT, loadPoints);
+    return () => window.removeEventListener(ZALO_AUTH_CHANGED_EVENT, loadPoints);
+  }, []);
+
+  const maxRedeemablePoints = userPoints
+    ? Math.max(
+        0,
+        Math.min(
+          userPoints,
+          Math.floor((total - MIN_PAYABLE_AMOUNT) / POINTS_REDEEM_VALUE_VND),
+        ),
+      )
+    : 0;
+  const pointsToRedeem = usePoints ? maxRedeemablePoints : 0;
+  const discount = pointsToRedeem * POINTS_REDEEM_VALUE_VND;
+  const payableTotal = total - discount;
+
+  const updateQuantity = (lineKey: string, delta: number) => {
     setItems((prev) =>
       prev.map((item) =>
-        item.id === id
+        cartLineKey(item) === lineKey
           ? { ...item, quantity: Math.max(1, item.quantity + delta) }
           : item,
       ),
     );
   };
 
-  const removeItem = (id: string) => {
-    setRemovingIds((prev) => [...prev, id]);
+  const removeItem = (lineKey: string) => {
+    setRemovingIds((prev) => [...prev, lineKey]);
     setTimeout(() => {
-      setItems((prev) => prev.filter((item) => item.id !== id));
-      setRemovingIds((prev) => prev.filter((removingId) => removingId !== id));
+      setItems((prev) => prev.filter((item) => cartLineKey(item) !== lineKey));
+      setRemovingIds((prev) => prev.filter((removingId) => removingId !== lineKey));
     }, 300);
   };
 
@@ -373,9 +422,14 @@ function CartPage() {
     let order: Awaited<ReturnType<typeof checkoutOrder>>;
     try {
       order = await checkoutOrder(
-        items.map((item) => ({ id: item.id, quantity: item.quantity })),
+        items.map((item) => ({
+          id: item.id,
+          quantity: item.quantity,
+          options: item.options,
+        })),
         getStoredZaloUser()?.id,
         address,
+        pointsToRedeem,
       );
     } catch (err) {
       const detail = describeError(err);
@@ -484,19 +538,22 @@ function CartPage() {
         </Box>
       ) : (
         <Box className="mt-5 flex-1" style={{ paddingBottom: 96 }}>
-          {items.map((item, index) => (
-            <CartItemCard
-              key={item.id}
-              item={item}
-              index={index}
-              mounted={mounted}
-              removing={removingIds.includes(item.id)}
-              onIncrease={() => updateQuantity(item.id, 1)}
-              onDecrease={() => updateQuantity(item.id, -1)}
-              onRemove={() => removeItem(item.id)}
-              onOpenDetail={() => navigate(`/product/${item.id}`)}
-            />
-          ))}
+          {items.map((item, index) => {
+            const lineKey = cartLineKey(item);
+            return (
+              <CartItemCard
+                key={lineKey}
+                item={item}
+                index={index}
+                mounted={mounted}
+                removing={removingIds.includes(lineKey)}
+                onIncrease={() => updateQuantity(lineKey, 1)}
+                onDecrease={() => updateQuantity(lineKey, -1)}
+                onRemove={() => removeItem(lineKey)}
+                onOpenDetail={() => navigate(`/product/${item.id}`)}
+              />
+            );
+          })}
         </Box>
       )}
 
@@ -511,6 +568,42 @@ function CartPage() {
               paddingBottom: "calc(20px + env(safe-area-inset-bottom))",
             }}
           >
+            {maxRedeemablePoints > 0 && (
+              <button
+                type="button"
+                onClick={() => setUsePoints((prev) => !prev)}
+                className="mb-3 flex w-full items-center justify-between gap-2 rounded-2xl bg-[#FFF4E8] px-3.5 py-2.5 text-left transition-colors active:opacity-80"
+              >
+                <Box className="flex min-w-0 items-center gap-2">
+                  <Text className="text-base leading-none">⭐</Text>
+                  <Box className="min-w-0">
+                    <Text size="small" className="font-semibold text-[#2f2f2f]">
+                      Dùng {maxRedeemablePoints.toLocaleString("vi-VN")} điểm
+                      thưởng
+                    </Text>
+                    <Text size="xSmall" className="text-gray-500">
+                      Giảm {formatPrice(maxRedeemablePoints * POINTS_REDEEM_VALUE_VND)}
+                      {" · "}
+                      còn {(userPoints ?? 0).toLocaleString("vi-VN")} điểm
+                    </Text>
+                  </Box>
+                </Box>
+
+                <span
+                  className={`flex h-6 w-11 flex-none items-center rounded-full p-0.5 transition-colors ${
+                    usePoints ? "bg-[#1a1a1a]" : "bg-gray-300"
+                  }`}
+                >
+                  <span
+                    className="h-5 w-5 rounded-full bg-white shadow-sm transition-transform"
+                    style={{
+                      transform: usePoints ? "translateX(20px)" : "translateX(0)",
+                    }}
+                  />
+                </span>
+              </button>
+            )}
+
             {checkoutError && (
               <Text size="small" className="mb-2 text-red-500">
                 {checkoutError}
@@ -522,8 +615,13 @@ function CartPage() {
                 <Text size="xSmall" className="text-gray-400">
                   Tổng cộng
                 </Text>
+                {discount > 0 && (
+                  <Text size="xSmall" className="text-gray-400 line-through">
+                    {formatPrice(total)}
+                  </Text>
+                )}
                 <Text.Title size="normal" className="font-bold text-[#1a1a1a]">
-                  {formatPrice(total)}
+                  {formatPrice(payableTotal)}
                 </Text.Title>
               </Box>
 

@@ -25,6 +25,9 @@ export const env = {
   },
   // Quy đổi điểm thưởng: số VNĐ tương ứng 1 điểm.
   pointsPerVnd: Number(process.env.POINTS_PER_VND ?? 10000),
+  // Giá trị quy đổi khi TIÊU điểm thưởng thành giảm giá — mặc định 100đ/điểm
+  // (100 điểm = giảm 10.000đ), tách riêng khỏi tỉ lệ TÍCH điểm ở trên.
+  pointsRedeemValueVnd: Number(process.env.POINTS_REDEEM_VALUE_VND ?? 100),
   // "Khoá bí mật của Zalo App" tại developers.zalo.me (KHÁC với key1/key2
   // của ZaloPay và ZMP_PAYMENT_PRIVATE_KEY) — dùng để đổi token của
   // getPhoneNumber() (zmp-sdk) thành số điện thoại thật qua graph.zalo.me.

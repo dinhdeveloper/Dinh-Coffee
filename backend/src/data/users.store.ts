@@ -75,3 +75,21 @@ export async function addPoints(userId: string, points: number) {
       // user không tồn tại (vd. id giả) — bỏ qua, không có điểm để cộng
     });
 }
+
+// Trừ điểm khi khách đổi điểm lấy giảm giá lúc đặt hàng (checkout()) — điều
+// kiện "points >= points" trong where khiến updateMany chỉ trừ khi đủ số dư,
+// tránh race condition đặt 2 đơn cùng lúc làm điểm âm. Trả về true nếu trừ
+// thành công, false nếu không đủ điểm/không có user.
+export async function spendPoints(
+  userId: string,
+  points: number,
+): Promise<boolean> {
+  if (points <= 0) return true;
+
+  const result = await prisma.user.updateMany({
+    where: { id: userId, points: { gte: points } },
+    data: { points: { decrement: points } },
+  });
+
+  return result.count > 0;
+}

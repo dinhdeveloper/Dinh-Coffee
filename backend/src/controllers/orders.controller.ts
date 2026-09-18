@@ -4,13 +4,51 @@ import { products } from "@/data/products.data";
 import {
   createOrder,
   getOrder,
+  markOrderCancelled,
+  markOrderFailed,
   markOrderPaid,
   setCheckoutSdkOrderId,
-  setOrderStatus,
 } from "@/data/orders.store";
+import { addPoints, spendPoints } from "@/data/users.store";
 import { createZaloPayOrder, queryZaloPayOrder } from "@/lib/zalopay";
 import { signCreateOrder } from "@/lib/zmp-payment";
+import {
+  computeOptionsSurcharge,
+  describeOptions,
+  ProductOptions,
+} from "@/data/customization-options";
 import { OrderItem } from "@/types/order";
+
+// Số tiền tối thiểu ZaloPay chấp nhận cho 1 giao dịch — dùng để giới hạn
+// không cho đổi điểm làm đơn còn lại quá ít hoặc bằng 0.
+const MIN_PAYABLE_AMOUNT = 1000;
+
+// Trừ điểm thưởng đổi giảm giá — không cho đổi vượt quá số dư điểm của
+// khách, cũng không cho giảm nhiều hơn mức khiến đơn còn lại dưới
+// MIN_PAYABLE_AMOUNT. Điểm bị trừ ngay khi tạo đơn (status "pending") và
+// được hoàn lại nếu đơn thanh toán thất bại (xem markOrderFailed).
+async function resolvePointsRedemption(
+  userId: string | undefined,
+  subtotal: number,
+  requestedPoints = 0,
+): Promise<{ pointsUsed: number; discount: number }> {
+  const points = Math.max(0, Math.floor(requestedPoints));
+  if (!userId || points <= 0) return { pointsUsed: 0, discount: 0 };
+
+  const maxByAmount = Math.floor(
+    Math.max(0, subtotal - MIN_PAYABLE_AMOUNT) / env.pointsRedeemValueVnd,
+  );
+  const candidatePoints = Math.min(points, maxByAmount);
+  if (candidatePoints <= 0) return { pointsUsed: 0, discount: 0 };
+
+  const spent = await spendPoints(userId, candidatePoints);
+  if (!spent) return { pointsUsed: 0, discount: 0 };
+
+  return {
+    pointsUsed: candidatePoints,
+    discount: candidatePoints * env.pointsRedeemValueVnd,
+  };
+}
 
 function parsePrice(price: string) {
   return Number(price.replace(/[^\d]/g, ""));
@@ -25,18 +63,23 @@ function generateAppTransId() {
   return `${yy}${mm}${dd}_${random}`;
 }
 
-function resolveOrderItems(items: { id: string; quantity: number }[] = []) {
+function resolveOrderItems(
+  items: { id: string; quantity: number; options?: ProductOptions }[] = [],
+) {
   const orderItems: OrderItem[] = [];
 
   for (const line of items) {
     const product = products.find((item) => item.id === line.id);
     if (!product || !line.quantity || line.quantity < 1) continue;
 
+    const unitPrice = parsePrice(product.price) + computeOptionsSurcharge(line.options);
+
     orderItems.push({
       id: product.id,
       title: product.title,
-      price: product.price,
+      price: `${unitPrice.toLocaleString("vi-VN")}đ`,
       quantity: line.quantity,
+      optionsLabel: describeOptions(line.options),
     });
   }
 
@@ -50,9 +93,10 @@ function resolveOrderItems(items: { id: string; quantity: number }[] = []) {
 
 export async function checkout(req: Request, res: Response) {
   const body = req.body as {
-    items?: { id: string; quantity: number }[];
+    items?: { id: string; quantity: number; options?: ProductOptions }[];
     userId?: string;
     address?: { receiver: string; phone: string; detail: string; note?: string };
+    pointsToRedeem?: number;
   };
 
   if (!body.items || body.items.length === 0) {
@@ -60,12 +104,19 @@ export async function checkout(req: Request, res: Response) {
     return;
   }
 
-  const { orderItems, amount } = resolveOrderItems(body.items);
+  const { orderItems, amount: subtotal } = resolveOrderItems(body.items);
 
   if (orderItems.length === 0) {
     res.status(400).json({ message: "Sản phẩm trong giỏ hàng không hợp lệ" });
     return;
   }
+
+  const { pointsUsed, discount } = await resolvePointsRedemption(
+    body.userId,
+    subtotal,
+    body.pointsToRedeem,
+  );
+  const amount = subtotal - discount;
 
   const appTransId = generateAppTransId();
 
@@ -82,6 +133,7 @@ export async function checkout(req: Request, res: Response) {
     });
 
     if (zpResult.return_code !== 1 || !zpResult.order_url) {
+      if (pointsUsed > 0 && body.userId) await addPoints(body.userId, pointsUsed);
       res.status(502).json({
         message:
           zpResult.sub_return_message ||
@@ -94,6 +146,9 @@ export async function checkout(req: Request, res: Response) {
     const order = await createOrder({
       id: appTransId,
       items: orderItems,
+      subtotal,
+      discount,
+      pointsUsed,
       amount,
       userId: body.userId,
       address: body.address,
@@ -104,9 +159,12 @@ export async function checkout(req: Request, res: Response) {
         orderId: order.id,
         orderUrl: zpResult.order_url,
         amount: order.amount,
+        discount: order.discount,
+        pointsUsed: order.pointsUsed,
       },
     });
   } catch (err) {
+    if (pointsUsed > 0 && body.userId) await addPoints(body.userId, pointsUsed);
     res.status(502).json({ message: "Không kết nối được tới ZaloPay" });
   }
 }
@@ -153,6 +211,7 @@ export async function checkoutInStore(req: Request, res: Response) {
           quantity: 1,
         },
       ],
+      subtotal: amount,
       amount,
       userId: body.userId,
     });
@@ -188,13 +247,33 @@ export async function getOrderStatus(req: Request, res: Response) {
     if (zpResult.return_code === 1) {
       await markOrderPaid(order);
     } else if (zpResult.return_code === 2) {
-      order.status = "failed";
-      await setOrderStatus(order.id, "failed");
+      await markOrderFailed(order);
     }
   } catch (err) {
     // giữ nguyên trạng thái pending nếu không gọi được ZaloPay, client sẽ tự thử lại
   }
 
+  res.json({ data: order });
+}
+
+// Khách tự huỷ đơn đang chờ thanh toán (đặt nhầm, đổi ý...) — chỉ cho phép
+// khi đơn còn "pending", tránh huỷ nhầm đơn đã thanh toán hoặc đã thất bại.
+export async function cancelOrder(req: Request, res: Response) {
+  const order = await getOrder(req.params.id);
+
+  if (!order) {
+    res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+    return;
+  }
+
+  if (order.status !== "pending") {
+    res.status(400).json({
+      message: "Đơn hàng không còn ở trạng thái có thể huỷ",
+    });
+    return;
+  }
+
+  await markOrderCancelled(order);
   res.json({ data: order });
 }
 
@@ -216,7 +295,7 @@ export async function createOrderMac(req: Request, res: Response) {
   }
 
   const body = req.body as {
-    items?: { id: string; quantity: number }[];
+    items?: { id: string; quantity: number; options?: ProductOptions }[];
     userId?: string;
   };
   const { orderItems, amount } = resolveOrderItems(body.items);
@@ -239,6 +318,7 @@ export async function createOrderMac(req: Request, res: Response) {
   const order = await createOrder({
     id: generateAppTransId(),
     items: orderItems,
+    subtotal: amount,
     amount,
     userId: body.userId,
   });
