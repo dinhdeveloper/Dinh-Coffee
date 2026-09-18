@@ -5,6 +5,7 @@ import {
   NON_CUSTOMIZABLE_CATEGORIES,
   ProductOptions,
   SizeOption,
+  describeOptions,
   TOPPING_INFO,
   ToppingOption,
 } from "@/data/customization-options";
@@ -39,7 +40,7 @@ const TOPPINGS = Object.keys(TOPPING_INFO) as ToppingOption[];
 const SYSTEM_PROMPT = `Bạn là trợ lý gọi món thân thiện của quán cà phê & trà trong ứng dụng. Luôn trả lời bằng tiếng Việt, xưng "mình" và gọi khách là "bạn", giọng ngắn gọn, vui vẻ, không quá 3 câu mỗi lượt.
 
 Cách làm việc:
-- Khi khách nói muốn uống gì, dùng công cụ search_products để tìm món thật trong menu. KHÔNG tự bịa tên món, id hay giá. Khách có thể gõ không dấu hoặc viết tắt ("cf sữa", "tra sua").
+- Chỉ được nói về các món có trong MENU bên dưới. KHÔNG tự bịa tên món, id hay giá. Khách có thể gõ không dấu hoặc viết tắt ("cf sữa", "tra sua") — hãy tự khớp với món gần nhất trong MENU.
 - Nếu có nhiều món phù hợp, gợi ý tối đa 3 món và hỏi khách chọn món nào.
 - Đồ uống có 3 tuỳ chọn: size (S/M/L, mặc định M), mức đường và mức đá (100/70/50/30/0 %, mặc định 100) và topping (tuỳ chọn). Nếu khách chưa nói size, đường hoặc đá, hãy hỏi lại một câu gọn rồi mới thêm vào giỏ — trừ khi khách bảo "như thường"/"mặc định". Bánh ngọt không có các tuỳ chọn này.
 - Khi đã đủ thông tin, gọi add_to_cart. App sẽ tự mở trang món và chọn từng tuỳ chọn như có người thao tác thật.
@@ -51,24 +52,9 @@ Cách làm việc:
 // OpenAPI, type viết hoa).
 const FUNCTION_DECLARATIONS = [
   {
-    name: "search_products",
-    description:
-      "Tìm món trong menu theo từ khoá và/hoặc danh mục. Bỏ trống cả hai để xem toàn bộ menu.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        query: { type: "STRING", description: "Từ khoá tên/mô tả món" },
-        category: {
-          type: "STRING",
-          description: "Danh mục, ví dụ: Cà phê, Trà sữa, Trà trái cây, Matcha, Bánh ngọt",
-        },
-      },
-    },
-  },
-  {
     name: "add_to_cart",
     description:
-      "Thêm món vào giỏ hàng trên app kèm tuỳ chọn. Chỉ gọi khi đã biết chính xác món (product_id lấy từ search_products).",
+      "Thêm món vào giỏ hàng trên app kèm tuỳ chọn. Chỉ gọi khi đã biết chính xác món (product_id lấy từ MENU).",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -91,40 +77,16 @@ const FUNCTION_DECLARATIONS = [
   },
 ];
 
-// Bỏ dấu + hạ chữ thường để khớp "ca phe sua" với "Cà phê sữa".
-function normalize(text: string) {
-  return text
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/đ/g, "d")
-    .replace(/Đ/g, "d")
-    .toLowerCase();
-}
-
-function searchProducts(query?: string, category?: string) {
-  const keywords = normalize(query ?? "")
-    .split(/\s+/)
-    .filter(Boolean);
-  const wantedCategory = category ? normalize(category) : "";
-
-  return products
-    .filter((product) => {
-      if (wantedCategory && !normalize(product.category).includes(wantedCategory)) {
-        return false;
-      }
-      const haystack = normalize(
-        `${product.title} ${product.category} ${product.description}`,
-      );
-      return keywords.every((word) => haystack.includes(word));
-    })
-    .map((product) => ({
-      id: product.id,
-      title: product.title,
-      price: product.price,
-      category: product.category,
-      customizable: !NON_CUSTOMIZABLE_CATEGORIES.includes(product.category),
-    }));
-}
+const MENU_TEXT = products
+  .map(
+    (product) =>
+      `- ${product.id} | ${product.title} | ${product.price} | ${product.category}${
+        NON_CUSTOMIZABLE_CATEGORIES.includes(product.category)
+          ? " | không có size/đường/đá"
+          : ""
+      }`,
+  )
+  .join("\n");
 
 function pickEnum<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
   return typeof value === "string" && (allowed as readonly string[]).includes(value)
@@ -132,22 +94,20 @@ function pickEnum<T extends string>(value: unknown, allowed: readonly T[], fallb
     : fallback;
 }
 
-type ToolOutcome = { content: string; action?: AssistantAction; isError?: boolean };
+type ToolOutcome = {
+  content: string;
+  action?: AssistantAction;
+  // Câu trả lời dự phòng khi model chỉ gọi công cụ mà không kèm lời nhắn.
+  fallbackReply?: string;
+  isError?: boolean;
+};
 
 function runTool(name: string, input: Record<string, unknown>): ToolOutcome {
-  if (name === "search_products") {
-    const found = searchProducts(
-      typeof input.query === "string" ? input.query : undefined,
-      typeof input.category === "string" ? input.category : undefined,
-    );
-    return { content: JSON.stringify(found) };
-  }
-
   if (name === "add_to_cart") {
     const product = products.find((item) => item.id === input.product_id);
     if (!product) {
       return {
-        content: "Không có món này trong menu, hãy dùng search_products lại.",
+        content: "Không có món này trong menu, hãy chọn lại đúng id trong MENU.",
         isError: true,
       };
     }
@@ -175,6 +135,9 @@ function runTool(name: string, input: Record<string, unknown>): ToolOutcome {
 
     return {
       content: `Đã gửi lệnh thêm ${quantity} ${product.title} vào giỏ, app đang thao tác.`,
+      fallbackReply: `Mình đã thêm ${quantity} ${product.title}${
+        describeOptions(options) ? ` (${describeOptions(options)})` : ""
+      } vào giỏ rồi nhé. Bạn muốn thêm món khác không?`,
       action: {
         type: "add_to_cart",
         productId: product.id,
@@ -186,7 +149,12 @@ function runTool(name: string, input: Record<string, unknown>): ToolOutcome {
   }
 
   if (name === "go_to_cart") {
-    return { content: "Đã mở trang giỏ hàng.", action: { type: "go_to_cart" } };
+    return {
+      content: "Đã mở trang giỏ hàng.",
+      fallbackReply:
+        "Mình mở giỏ hàng cho bạn rồi nè. Bạn kiểm tra và bấm đặt hàng để thanh toán nhé!",
+      action: { type: "go_to_cart" },
+    };
   }
 
   return { content: `Công cụ ${name} không tồn tại.`, isError: true };
@@ -213,12 +181,13 @@ export class GeminiError extends Error {
   }
 }
 
-async function callGemini(
+async function callGeminiModel(
+  model: string,
   systemInstruction: string,
   contents: GeminiContent[],
 ): Promise<GeminiContent | undefined> {
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${env.gemini.model}:generateContent`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
       method: "POST",
       headers: {
@@ -242,6 +211,30 @@ async function callGemini(
   return data.candidates?.[0]?.content;
 }
 
+// Hạn mức miễn phí tính riêng theo từng model, nên khi model chính hết quota
+// (429) / bị gỡ (404) / quá tải (503) thì thử model dự phòng thay vì báo lỗi.
+async function callGemini(
+  systemInstruction: string,
+  contents: GeminiContent[],
+): Promise<GeminiContent | undefined> {
+  const models = [env.gemini.model, ...env.gemini.fallbackModels];
+  let lastError: unknown;
+
+  for (const model of models) {
+    try {
+      return await callGeminiModel(model, systemInstruction, contents);
+    } catch (err) {
+      lastError = err;
+      const retryable =
+        err instanceof GeminiError && [404, 429, 500, 503].includes(err.status);
+      if (!retryable) throw err;
+      console.warn(`[assistant] ${model} lỗi, thử model khác: ${err.message}`);
+    }
+  }
+
+  throw lastError;
+}
+
 export async function runAssistant(
   history: AssistantMessage[],
   cart: AssistantCartLine[],
@@ -255,7 +248,7 @@ export async function runAssistant(
           )
           .join("\n")
       : "(giỏ hàng đang trống)";
-  const systemInstruction = `${SYSTEM_PROMPT}\n\nGiỏ hàng hiện tại của khách:\n${cartSummary}`;
+  const systemInstruction = `${SYSTEM_PROMPT}\n\nMENU (id | tên | giá | danh mục):\n${MENU_TEXT}\n\nGiỏ hàng hiện tại của khách:\n${cartSummary}`;
 
   const contents: GeminiContent[] = history.map((message) => ({
     role: message.role === "user" ? "user" : "model",
@@ -276,13 +269,14 @@ export async function runAssistant(
     const calls = parts.filter((part) => part.functionCall);
     if (!content || calls.length === 0) break;
 
-    // Giữ nguyên các part của model (kể cả thoughtSignature) khi gửi lại.
-    contents.push({ role: "model", parts });
-
+    let errored = false;
+    const fallbackReplies: string[] = [];
     const responses: GeminiPart[] = calls.map((part) => {
       const call = part.functionCall!;
       const outcome = runTool(call.name, call.args ?? {});
       if (outcome.action) actions.push(outcome.action);
+      if (outcome.fallbackReply) fallbackReplies.push(outcome.fallbackReply);
+      errored ||= Boolean(outcome.isError);
       return {
         functionResponse: {
           name: call.name,
@@ -292,6 +286,16 @@ export async function runAssistant(
         },
       };
     });
+
+    // Lệnh thao tác giao diện chạy xong là đủ: không gọi model lần nữa chỉ
+    // để nó nói lại (mỗi lần gọi tốn thêm ~1s và 1 lượt hạn mức miễn phí).
+    if (!errored) {
+      if (!reply) reply = fallbackReplies.join(" ");
+      break;
+    }
+
+    // Gửi lỗi về cho model để nó tự sửa (vd. sai product_id) rồi thử lại.
+    contents.push({ role: "model", parts });
     contents.push({ role: "user", parts: responses });
   }
 
