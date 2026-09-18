@@ -32,7 +32,7 @@ model Order {
   discount           Int       @default(0) // số tiền được giảm nhờ đổi điểm thưởng
   pointsUsed         Int       @default(0) // số điểm đã trừ của user cho đơn này — hoàn lại nếu đơn "failed"
   amount             Int // số tiền thực trả = subtotal - discount, gửi cho ZaloPay
-  status             String    @default("pending") // "pending" | "paid" | "failed"
+  status             String    @default("pending") // "pending" | "paid" | "failed" | "cancelled"
   // Tình trạng chuẩn bị đơn sau khi đã "paid" — "confirmed" | "preparing" |
   // "delivering" | "completed", tự động tiến 1 bước mỗi phút (xem
   // advanceOrderStage trong orders.store.ts). null khi chưa thanh toán.
@@ -128,4 +128,39 @@ model ProductStat {
   purchaseCount Int    @default(0)
 
   @@map("product_stats")
+}
+
+// Danh mục món (Trà sữa, Trà trái cây, Cà phê, Matcha, Bánh ngọt...) — hiện
+// đang là chuỗi tự do trong Product.category ở src/types/product.ts, tách
+// riêng ra bảng để không bị gõ sai tên/khó đổi thứ tự hiển thị trên tab lọc.
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+  products  Product[]
+
+  @@map("categories")
+}
+
+// Catalog món — hiện đang seed tĩnh từ backend/src/data/products.data.ts,
+// chuyển sang đây để admin có thể thêm/sửa/ẩn món mà không cần deploy lại
+// code. id giữ nguyên dạng slug ("tra-sua-tran-chau") như dữ liệu tĩnh hiện
+// tại để không phải đổi id trong giỏ hàng/đơn hàng cũ.
+model Product {
+  id           String    @id
+  title        String
+  price        Int // lưu số nguyên (đồng) thay vì chuỗi "35.000đ" như bản tĩnh — format ở tầng hiển thị
+  image        String
+  categoryId   String?
+  category     Category? @relation(fields: [categoryId], references: [id])
+  rating       Float     @default(0)
+  reviewsCount Int       @default(0) // số lượng đánh giá hiển thị trên thẻ sản phẩm — khác Review (chi tiết từng đánh giá)
+  description  String
+  isActive     Boolean   @default(true) // false = ẩn khỏi menu mà không cần xoá (đơn hàng cũ vẫn tham chiếu được id)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([categoryId])
+  @@map("products")
 }
