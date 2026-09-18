@@ -3,6 +3,7 @@ import { env } from "@/config/env";
 import {
   AssistantCartLine,
   AssistantMessage,
+  GeminiError,
   runAssistant,
 } from "@/lib/assistant";
 
@@ -71,7 +72,7 @@ function parseCart(value: unknown): AssistantCartLine[] {
 
 export async function chat(req: Request, res: Response, next: NextFunction) {
   try {
-    if (!env.anthropic.apiKey) {
+    if (!env.gemini.apiKey) {
       res.status(503).json({ message: "Trợ lý AI chưa được cấu hình" });
       return;
     }
@@ -89,6 +90,12 @@ export async function chat(req: Request, res: Response, next: NextFunction) {
 
     res.json(await runAssistant(messages, parseCart(req.body?.cart)));
   } catch (err) {
+    // Hết hạn mức miễn phí của Gemini -> báo 429 để app hiện đúng lời nhắn.
+    if (err instanceof GeminiError && err.status === 429) {
+      console.error(err.message);
+      res.status(429).json({ message: "Trợ lý đang quá tải" });
+      return;
+    }
     next(err);
   }
 }

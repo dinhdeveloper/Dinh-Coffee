@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { env } from "@/config/env";
 import { products } from "@/data/products.data";
 import {
@@ -48,17 +47,19 @@ Cách làm việc:
 - Bạn KHÔNG thể tự thanh toán. Luôn nói rõ khách cần bấm nút đặt hàng/thanh toán để xác nhận cuối cùng.
 - Chỉ nói chuyện về việc gọi món và menu của quán; từ chối lịch sự các chủ đề khác.`;
 
-const TOOLS: Anthropic.Tool[] = [
+// Khai báo công cụ theo định dạng function calling của Gemini (schema kiểu
+// OpenAPI, type viết hoa).
+const FUNCTION_DECLARATIONS = [
   {
     name: "search_products",
     description:
       "Tìm món trong menu theo từ khoá và/hoặc danh mục. Bỏ trống cả hai để xem toàn bộ menu.",
-    input_schema: {
-      type: "object",
+    parameters: {
+      type: "OBJECT",
       properties: {
-        query: { type: "string", description: "Từ khoá tên/mô tả món" },
+        query: { type: "STRING", description: "Từ khoá tên/mô tả món" },
         category: {
-          type: "string",
+          type: "STRING",
           description: "Danh mục, ví dụ: Cà phê, Trà sữa, Trà trái cây, Matcha, Bánh ngọt",
         },
       },
@@ -68,17 +69,17 @@ const TOOLS: Anthropic.Tool[] = [
     name: "add_to_cart",
     description:
       "Thêm món vào giỏ hàng trên app kèm tuỳ chọn. Chỉ gọi khi đã biết chính xác món (product_id lấy từ search_products).",
-    input_schema: {
-      type: "object",
+    parameters: {
+      type: "OBJECT",
       properties: {
-        product_id: { type: "string" },
-        quantity: { type: "integer", minimum: 1, maximum: 10 },
-        size: { type: "string", enum: SIZES },
-        sugar: { type: "string", enum: LEVELS, description: "Mức đường (%)" },
-        ice: { type: "string", enum: LEVELS, description: "Mức đá (%)" },
+        product_id: { type: "STRING" },
+        quantity: { type: "INTEGER", description: "Số lượng, 1-10" },
+        size: { type: "STRING", enum: SIZES },
+        sugar: { type: "STRING", enum: LEVELS, description: "Mức đường (%)" },
+        ice: { type: "STRING", enum: LEVELS, description: "Mức đá (%)" },
         toppings: {
-          type: "array",
-          items: { type: "string", enum: TOPPINGS },
+          type: "ARRAY",
+          items: { type: "STRING", enum: TOPPINGS },
         },
       },
       required: ["product_id"],
@@ -87,7 +88,6 @@ const TOOLS: Anthropic.Tool[] = [
   {
     name: "go_to_cart",
     description: "Mở trang giỏ hàng để khách kiểm tra và bấm thanh toán.",
-    input_schema: { type: "object", properties: {} },
   },
 ];
 
@@ -192,14 +192,60 @@ function runTool(name: string, input: Record<string, unknown>): ToolOutcome {
   return { content: `Công cụ ${name} không tồn tại.`, isError: true };
 }
 
-let client: Anthropic | null = null;
+type GeminiPart = {
+  text?: string;
+  functionCall?: { name: string; args?: Record<string, unknown> };
+  functionResponse?: { name: string; response: Record<string, unknown> };
+  [key: string]: unknown;
+};
+type GeminiContent = { role: "user" | "model"; parts: GeminiPart[] };
+type GeminiResponse = {
+  candidates?: { content?: GeminiContent; finishReason?: string }[];
+  error?: { message?: string };
+};
+
+export class GeminiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(`Gemini ${status}: ${message}`);
+    this.status = status;
+  }
+}
+
+async function callGemini(
+  systemInstruction: string,
+  contents: GeminiContent[],
+): Promise<GeminiContent | undefined> {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${env.gemini.model}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": env.gemini.apiKey,
+      },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+        contents,
+        tools: [{ functionDeclarations: FUNCTION_DECLARATIONS }],
+        generationConfig: { maxOutputTokens: 700, temperature: 0.6 },
+      }),
+    },
+  );
+
+  const data = (await res.json().catch(() => ({}))) as GeminiResponse;
+  if (!res.ok) {
+    throw new GeminiError(res.status, data.error?.message ?? "lỗi không rõ");
+  }
+
+  return data.candidates?.[0]?.content;
+}
 
 export async function runAssistant(
   history: AssistantMessage[],
   cart: AssistantCartLine[],
 ): Promise<AssistantResult> {
-  client ??= new Anthropic({ apiKey: env.anthropic.apiKey });
-
   const cartSummary =
     cart.length > 0
       ? cart
@@ -209,47 +255,44 @@ export async function runAssistant(
           )
           .join("\n")
       : "(giỏ hàng đang trống)";
+  const systemInstruction = `${SYSTEM_PROMPT}\n\nGiỏ hàng hiện tại của khách:\n${cartSummary}`;
 
-  const messages: Anthropic.MessageParam[] = history.map((message) => ({
-    role: message.role,
-    content: message.content,
+  const contents: GeminiContent[] = history.map((message) => ({
+    role: message.role === "user" ? "user" : "model",
+    parts: [{ text: message.content }],
   }));
   const actions: AssistantAction[] = [];
   let reply = "";
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const response = await client.messages.create({
-      model: env.anthropic.model,
-      max_tokens: 700,
-      system: `${SYSTEM_PROMPT}\n\nGiỏ hàng hiện tại của khách:\n${cartSummary}`,
-      tools: TOOLS,
-      messages,
-    });
+    const content = await callGemini(systemInstruction, contents);
+    const parts = content?.parts ?? [];
 
-    reply = response.content
-      .filter((block): block is Anthropic.TextBlock => block.type === "text")
-      .map((block) => block.text)
-      .join("\n")
+    reply = parts
+      .map((part) => part.text ?? "")
+      .join("")
       .trim();
 
-    if (response.stop_reason !== "tool_use") break;
+    const calls = parts.filter((part) => part.functionCall);
+    if (!content || calls.length === 0) break;
 
-    messages.push({ role: "assistant", content: response.content });
+    // Giữ nguyên các part của model (kể cả thoughtSignature) khi gửi lại.
+    contents.push({ role: "model", parts });
 
-    const results: Anthropic.ToolResultBlockParam[] = [];
-    for (const block of response.content) {
-      if (block.type !== "tool_use") continue;
-
-      const outcome = runTool(block.name, (block.input ?? {}) as Record<string, unknown>);
+    const responses: GeminiPart[] = calls.map((part) => {
+      const call = part.functionCall!;
+      const outcome = runTool(call.name, call.args ?? {});
       if (outcome.action) actions.push(outcome.action);
-      results.push({
-        type: "tool_result",
-        tool_use_id: block.id,
-        content: outcome.content,
-        is_error: outcome.isError,
-      });
-    }
-    messages.push({ role: "user", content: results });
+      return {
+        functionResponse: {
+          name: call.name,
+          response: outcome.isError
+            ? { error: outcome.content }
+            : { result: outcome.content },
+        },
+      };
+    });
+    contents.push({ role: "user", parts: responses });
   }
 
   return {

@@ -328,7 +328,7 @@ function AssistantBot() {
         err instanceof ApiError && err.status === 503
           ? "Trợ lý AI chưa được bật, bạn thử lại sau nhé."
           : err instanceof ApiError && err.status === 429
-            ? "Bạn nhắn nhanh quá, đợi mình chút nhé."
+            ? "Trợ lý đang hơi quá tải, bạn đợi một chút rồi thử lại nhé."
             : "Mình bị mất kết nối rồi, bạn thử lại giúp mình nhé.";
       setMessages((prev) => [...prev, { role: "assistant", content: message }]);
     } finally {
