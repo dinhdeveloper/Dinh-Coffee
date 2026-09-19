@@ -112,22 +112,34 @@ function HomePage() {
 
   useEffect(() => {
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     setPromotionsLoading(true);
 
-    fetchPromotions()
-      .then((data) => {
-        if (!cancelled) setPromotions(data);
-      })
-      .catch(() => {
-        if (!cancelled) setPromotions([]);
-      })
-      .finally(() => {
-        if (!cancelled) setPromotionsLoading(false);
-      });
+    // API miễn phí hay ngủ/lỗi: giữ khung banner đang chạy hiệu ứng chờ và tự
+    // thử lại vài lần, hết lượt mới ẩn banner.
+    const load = (attempt: number) => {
+      fetchPromotions()
+        .then((data) => {
+          if (cancelled) return;
+          setPromotions(data);
+          setPromotionsLoading(false);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          if (attempt < 3) {
+            retryTimer = setTimeout(() => load(attempt + 1), 3000);
+            return;
+          }
+          setPromotions([]);
+          setPromotionsLoading(false);
+        });
+    };
+    load(0);
 
     return () => {
       cancelled = true;
+      clearTimeout(retryTimer);
     };
   }, []);
 
@@ -241,7 +253,7 @@ function HomePage() {
           BANNER / SWIPER
       ========================== */}
       {promotionsLoading ? (
-        <Box className="mt-6 h-40 w-full flex-none animate-pulse rounded-lg bg-white/40" />
+        <Box className="skeleton mt-6 h-40 w-full flex-none rounded-lg" />
       ) : (
         promotions.length > 0 && (
           <Box className="mt-6 w-full flex-none">

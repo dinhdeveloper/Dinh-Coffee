@@ -26,9 +26,19 @@ function StoryViewer({
   const [storyIndex, setStoryIndex] = useState(startIndex);
   const [progress, setProgress] = useState(0);
   const [visible, setVisible] = useState(false);
+  // Thanh chạy chỉ bắt đầu khi ảnh của story hiện tại đã tải xong (API/ảnh
+  // miễn phí có thể chậm), tránh việc hết giờ mà khách còn chưa thấy ảnh.
+  const [loadedIndex, setLoadedIndex] = useState<number | null>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
   const rafRef = useRef<number>();
 
   const story = stories[storyIndex];
+  const loaded = loadedIndex === storyIndex;
+
+  // Ảnh đã có trong cache thì onLoad có thể bắn trước khi React gắn handler.
+  useEffect(() => {
+    if (imgRef.current?.complete) setLoadedIndex(storyIndex);
+  }, [storyIndex]);
 
   const goNext = () => {
     if (storyIndex < stories.length - 1) {
@@ -59,6 +69,7 @@ function StoryViewer({
   }, []);
 
   useEffect(() => {
+    if (!loaded) return;
     const start = performance.now();
 
     const tick = (now: number) => {
@@ -78,7 +89,7 @@ function StoryViewer({
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storyIndex]);
+  }, [storyIndex, loaded]);
 
   if (!story) return null;
 
@@ -88,8 +99,12 @@ function StoryViewer({
       style={{ opacity: visible ? 1 : 0 }}
     >
       <img
+        ref={imgRef}
+        key={story.id}
         src={story.image}
         alt={story.title}
+        onLoad={() => setLoadedIndex(storyIndex)}
+        onError={() => setLoadedIndex(storyIndex)}
         className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 ease-out"
         style={{ transform: visible ? "scale(1)" : "scale(1.06)" }}
       />
@@ -119,16 +134,20 @@ function StoryViewer({
           <Box
             key={item.id}
             className="overflow-hidden rounded-full bg-white/25"
-            style={{ height: 2.5, flex: 1 }}
+            style={{ height: 2, flex: 1 }}
           >
             <Box
-              className="h-full rounded-full bg-white transition-[width] ease-linear"
+              className={`h-full rounded-full bg-white transition-[width] ease-linear ${
+                idx === storyIndex && !loaded ? "animate-pulse" : ""
+              }`}
               style={{
                 width:
                   idx < storyIndex
                     ? "100%"
                     : idx === storyIndex
-                      ? `${progress * 100}%`
+                      ? loaded
+                        ? `${progress * 100}%`
+                        : "35%"
                       : "0%",
                 transitionDuration: idx === storyIndex ? "80ms" : "0ms",
               }}

@@ -128,7 +128,7 @@ function PromotionDetailPage() {
             className="h-full w-full object-cover"
           />
         ) : (
-          <Box className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#3a2a1d] to-[#1a1a1a] text-5xl">
+          <Box className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#006AF5] to-[#8FC1FF] text-5xl">
             🎁
           </Box>
         )}
@@ -190,11 +190,11 @@ function PromotionDetailPage() {
       {/* =========================
           CONTENT
       ========================== */}
-      <Box className="-mt-5 flex-1">
+      <Box className="relative z-10 -mt-6 flex-1">
         {status === "loading" && (
-          <Box className="flex flex-col gap-2.5 rounded-3xl border border-white/40 bg-white/15 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.10)] backdrop-blur-xl">
+          <Box className="flex flex-col gap-2.5 glass-card rounded-2xl p-5">
             {[0, 1, 2, 3].map((i) => (
-              <Box key={i} className="h-4 animate-pulse rounded bg-white/40" />
+              <Box key={i} className="skeleton h-4 rounded" />
             ))}
           </Box>
         )}
@@ -219,9 +219,9 @@ function PromotionDetailPage() {
         {status === "ready" && promotion && (
           <>
             {/* Coupon ticket */}
-            <Box className="relative flex overflow-hidden rounded-2xl bg-white shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
+            <Box className="relative flex overflow-hidden rounded-2xl border border-black/5 bg-white shadow-[0_10px_30px_rgba(20,20,20,0.12)]">
               <Box className="flex w-24 flex-none flex-col items-center justify-center btn-liquid py-4 text-white">
-                <Icon icon="zi-star-solid" size={20} className="text-[#e0a53c]" />
+                <Icon icon="zi-star-solid" size={20} className="text-white" />
                 <Text className="mt-1 text-lg font-extrabold leading-none">
                   {promotion.discountLabel ?? "HOT"}
                 </Text>
@@ -240,7 +240,7 @@ function PromotionDetailPage() {
                       <button
                         type="button"
                         onClick={handleCopyCode}
-                        className="flex items-center gap-1 rounded-full bg-[#fff4e8] px-2.5 py-1 text-xs font-semibold text-[#c9761b]"
+                        className="flex items-center gap-1 rounded-full bg-[#e8f1ff] px-2.5 py-1 text-xs font-medium text-[#006AF5] transition-transform active:scale-95"
                       >
                         <Icon icon="zi-copy" size={13} />
                         Sao chép
@@ -264,7 +264,7 @@ function PromotionDetailPage() {
             </Box>
 
             {/* Description */}
-            <Box className="mt-3.5 rounded-3xl border border-white/40 bg-white/15 p-4.5 shadow-[0_10px_30px_rgba(0,0,0,0.10)] backdrop-blur-xl">
+            <Box className="mt-3.5 glass-card rounded-2xl p-4">
               <Box className="mb-3 flex items-center gap-2.5">
                 <Box className="flex h-9 w-9 flex-none items-center justify-center rounded-full btn-liquid text-base text-white">
                   📣
@@ -291,7 +291,7 @@ function PromotionDetailPage() {
             </Box>
 
             {/* How to use */}
-            <Box className="mt-3.5 rounded-3xl border border-white/40 bg-white/15 p-4.5 shadow-[0_10px_30px_rgba(0,0,0,0.10)] backdrop-blur-xl">
+            <Box className="mt-3.5 glass-card rounded-2xl p-4">
               <Text size="small" className="mb-3 font-bold text-[#1a1a1a]">
                 Cách nhận ưu đãi
               </Text>
@@ -301,7 +301,7 @@ function PromotionDetailPage() {
                 "Tận hưởng thức uống yêu thích với giá tốt hơn",
               ].map((step, index) => (
                 <Box key={step} className="mt-2 flex items-start gap-2.5 first:mt-0">
-                  <Box className="flex h-5 w-5 flex-none items-center justify-center rounded-full btn-liquid/10 text-[10px] font-medium text-[#1a1a1a]">
+                  <Box className="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-[#006AF5]/10 text-[10px] font-semibold text-[#006AF5]">
                     {index + 1}
                   </Box>
                   <Text size="small" className="text-black/70">
@@ -315,7 +315,7 @@ function PromotionDetailPage() {
               <button
                 type="button"
                 onClick={handleCta}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-full border-0 btn-liquid py-3.5 text-sm font-medium text-white shadow-[0_10px_24px_rgba(0,0,0,0.20)] transition-transform active:scale-[0.98]"
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-full border-0 btn-liquid py-3.5 text-sm font-medium text-white transition-transform active:scale-[0.98]"
               >
                 {cta}
                 <Icon icon="zi-chevron-right" size={16} />
