@@ -67,6 +67,7 @@ function ProductCard({
 
   return (
     <Box
+      data-bot-product={product.id}
       onClick={onClick}
       className={`group relative cursor-pointer glass-card rounded-2xl transition-transform duration-150 active:scale-[0.96] ${className}`}
       style={style}

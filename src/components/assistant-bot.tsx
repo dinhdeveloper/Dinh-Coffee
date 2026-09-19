@@ -142,6 +142,12 @@ function AssistantBot() {
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  // Con trỏ giả lúc bot đi tìm món trong danh sách (trang chi tiết có con trỏ riêng).
+  const [cursor, setCursor] = useState<{
+    x: number;
+    y: number;
+    tapping: boolean;
+  } | null>(null);
 
   const dragRef = useRef<{
     startX: number;
@@ -293,6 +299,52 @@ function AssistantBot() {
     [store],
   );
 
+  // Như người thật: vào danh sách món, cuộn tới đúng món, di con trỏ tới rồi bấm
+  // vào để mở trang chi tiết. Không tìm thấy món thì trả về false (vẫn mở trang
+  // chi tiết trực tiếp).
+  const browseToProduct = async (productId: string) => {
+    navigate("/suggestions");
+    setCursor({
+      x: window.innerWidth / 2,
+      y: window.innerHeight * 0.55,
+      tapping: false,
+    });
+
+    const find = () =>
+      document.querySelector<HTMLElement>(`[data-bot-product="${productId}"]`);
+
+    // Chờ danh sách tải xong (API miễn phí có thể chậm).
+    for (let i = 0; i < 40 && !find(); i++) {
+      if (cancelRef.current) return false;
+      await wait(250);
+    }
+    const card = find();
+    if (!card) {
+      setCursor(null);
+      return false;
+    }
+
+    // Cuộn dần tới món, mỗi lượt đo lại vị trí vì danh sách đang hiện dần.
+    card.scrollIntoView({ behavior: "smooth", block: "center" });
+    await wait(1100);
+    if (cancelRef.current) {
+      setCursor(null);
+      return false;
+    }
+
+    const rect = (find() ?? card).getBoundingClientRect();
+    setCursor({
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+      tapping: false,
+    });
+    await wait(900);
+    setCursor((prev) => (prev ? { ...prev, tapping: true } : prev));
+    await wait(450);
+    setCursor(null);
+    return true;
+  };
+
   // Thực thi lần lượt các lệnh AI trả về, có độ trễ để nhìn như người thật thao tác.
   const runActions = async (actions: AssistantAction[]) => {
     cancelRef.current = false;
@@ -307,6 +359,8 @@ function AssistantBot() {
           navigate(`/product/${action.productId}`);
           await wait(1800);
         } else if (action.type === "add_to_cart") {
+          await browseToProduct(action.productId);
+          if (cancelRef.current) break;
           store.set(assistantIntentAtom, {
             productId: action.productId,
             quantity: action.quantity,
@@ -345,6 +399,7 @@ function AssistantBot() {
       }
     } finally {
       store.set(assistantIntentAtom, null);
+      setCursor(null);
       setRunning(false);
     }
   };
@@ -469,10 +524,44 @@ function AssistantBot() {
 
   if (!position) return null;
 
+  const cursorOverlay = cursor && (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none fixed left-0 top-0 z-[2000]"
+      style={{
+        transform: `translate(${cursor.x}px, ${cursor.y}px)`,
+        transition: "transform 650ms cubic-bezier(0.22, 1, 0.36, 1)",
+      }}
+    >
+      {cursor.tapping && (
+        <span className="absolute -left-4 -top-4 h-8 w-8 animate-ping rounded-full bg-[#a78bfa] opacity-60" />
+      )}
+      <svg
+        viewBox="0 0 24 24"
+        width="28"
+        height="28"
+        style={{
+          transform: cursor.tapping ? "scale(0.85)" : "scale(1)",
+          transition: "transform 120ms ease",
+          filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.35))",
+        }}
+      >
+        <path
+          d="M4 2l16 9-7 2-3 7z"
+          fill="#fff"
+          stroke="#2f2f2f"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </div>
+  );
+
   const onRight = position.x + BOT_SIZE / 2 > window.innerWidth / 2;
 
   return (
     <>
+      {cursorOverlay}
       {open && (
         <div
           className="glass-card fixed z-[1001] flex flex-col overflow-hidden rounded-3xl"
