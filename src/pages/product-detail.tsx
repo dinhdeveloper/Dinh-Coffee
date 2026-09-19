@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { createPortal } from "react-dom";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { Box, Icon, Page, Text, useNavigate, useParams } from "zmp-ui";
 import { ApiError } from "@/services/api";
@@ -50,6 +51,12 @@ function ProductDetailPage() {
   const [mounted, setMounted] = useState(false);
   const [favoriteIds, setFavoriteIds] = useAtom(favoriteIdsAtom);
   const [quantity, setQuantity] = useState(1);
+  // Con trỏ giả do bot điều khiển, để người dùng thấy bot đang bấm vào đâu.
+  const [botCursor, setBotCursor] = useState<{
+    x: number;
+    y: number;
+    tapping: boolean;
+  } | null>(null);
   const [selectedSize, setSelectedSize] = useState<SizeOption>("M");
   const [selectedSugar, setSelectedSugar] = useState<LevelOption>("100");
   const [selectedIce, setSelectedIce] = useState<LevelOption>("100");
@@ -202,31 +209,93 @@ function ProductDetailPage() {
     if (!intentPending || !assistantIntent || !product) return;
 
     const timers: ReturnType<typeof setTimeout>[] = [];
-    let delay = 500;
-    const step = (fn: () => void, gap = 600) => {
+    let delay = 1200;
+    // Mỗi bước: cuộn tới nút → di con trỏ tới → bấm (hiệu ứng chạm) → chọn.
+    const step = (fn: () => void, gap = 1000, target?: string) => {
+      if (target) {
+        const findTarget = () =>
+          document.querySelector(`[data-bot-opt="${target}"]`);
+        timers.push(
+          setTimeout(() => {
+            findTarget()?.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+              inline: "center",
+            });
+          }, delay),
+        );
+        delay += 500;
+        timers.push(
+          setTimeout(() => {
+            const rect = findTarget()?.getBoundingClientRect();
+            if (!rect) return;
+            setBotCursor((prev) => ({
+              x: rect.left + rect.width / 2,
+              y: rect.top + rect.height / 2,
+              tapping: prev?.tapping ?? false,
+            }));
+          }, delay),
+        );
+        delay += 700;
+        timers.push(
+          setTimeout(() => {
+            setBotCursor((prev) => (prev ? { ...prev, tapping: true } : prev));
+          }, delay),
+        );
+        timers.push(
+          setTimeout(() => {
+            setBotCursor((prev) => (prev ? { ...prev, tapping: false } : prev));
+          }, delay + 350),
+        );
+      }
       timers.push(setTimeout(fn, delay));
       delay += gap;
     };
 
+    // Con trỏ xuất hiện giữa màn hình rồi mới bay tới nút đầu tiên.
+    timers.push(
+      setTimeout(
+        () =>
+          setBotCursor({
+            x: window.innerWidth / 2,
+            y: window.innerHeight * 0.6,
+            tapping: false,
+          }),
+        200,
+      ),
+    );
+
     if (assistantIntent.quantity > 1) {
-      step(() => setQuantity(assistantIntent.quantity));
+      step(
+        () => setQuantity(assistantIntent.quantity),
+        1000,
+        "quantity-plus",
+      );
     }
     const opts = isCustomizableCategory(product.category)
       ? assistantIntent.options
       : undefined;
-    if (opts?.size) step(() => setSelectedSize(opts.size!));
-    if (opts?.sugar) step(() => setSelectedSugar(opts.sugar!));
-    if (opts?.ice) step(() => setSelectedIce(opts.ice!));
+    if (opts?.size)
+      step(() => setSelectedSize(opts.size!), 1000, `size-${opts.size}`);
+    if (opts?.sugar)
+      step(() => setSelectedSugar(opts.sugar!), 1000, `sugar-${opts.sugar}`);
+    if (opts?.ice)
+      step(() => setSelectedIce(opts.ice!), 1000, `ice-${opts.ice}`);
     for (const topping of opts?.toppings ?? []) {
       step(() =>
         setSelectedToppings((prev) =>
           prev.includes(topping) ? prev : [...prev, topping],
         ),
+        1000,
+        `topping-${topping}`,
       );
     }
-    step(() => setAutoAdd(true), 400);
+    step(() => setAutoAdd(true), 900, "add-to-cart");
 
-    return () => timers.forEach(clearTimeout);
+    return () => {
+      timers.forEach(clearTimeout);
+      setBotCursor(null);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intentPending]);
 
@@ -239,8 +308,9 @@ function ProductDetailPage() {
     setTimeout(
       () =>
         setAssistantIntent((prev) => (prev ? { ...prev, status: "done" } : prev)),
-      900,
+      1500,
     );
+    setTimeout(() => setBotCursor(null), 1200);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoAdd]);
 
@@ -364,6 +434,39 @@ function ProductDetailPage() {
     setTimeout(() => setAdded(false), 1600);
   };
   addToCartRef.current = handleAddToCart;
+
+  const cursorOverlay = botCursor && (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none fixed left-0 top-0 z-[2000]"
+      style={{
+        transform: `translate(${botCursor.x}px, ${botCursor.y}px)`,
+        transition: "transform 650ms cubic-bezier(0.22, 1, 0.36, 1)",
+      }}
+    >
+      {botCursor.tapping && (
+        <span className="absolute -left-4 -top-4 h-8 w-8 animate-ping rounded-full bg-[#a78bfa] opacity-60" />
+      )}
+      <svg
+        viewBox="0 0 24 24"
+        width="28"
+        height="28"
+        style={{
+          transform: botCursor.tapping ? "scale(0.85)" : "scale(1)",
+          transition: "transform 120ms ease",
+          filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.35))",
+        }}
+      >
+        <path
+          d="M4 2l16 9-7 2-3 7z"
+          fill="#fff"
+          stroke="#2f2f2f"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </div>
+  );
 
   return (
     <Page
@@ -525,6 +628,7 @@ function ProductDetailPage() {
             <button
               type="button"
               aria-label="Tăng số lượng"
+              data-bot-opt="quantity-plus"
               onClick={() => setQuantity((q) => Math.min(20, q + 1))}
               className="flex h-7 w-7 items-center justify-center rounded-full border-0 bg-[#1a1a1a] p-0 text-white transition-transform active:scale-90"
             >
@@ -551,6 +655,7 @@ function ProductDetailPage() {
                 <button
                   key={opt.value}
                   type="button"
+                  data-bot-opt={`size-${opt.value}`}
                   onClick={() => setSelectedSize(opt.value)}
                   className={`flex-1 rounded-xl border-[1.5px] py-2 text-sm font-semibold transition-colors ${
                     selectedSize === opt.value
@@ -580,6 +685,7 @@ function ProductDetailPage() {
                 <button
                   key={opt.value}
                   type="button"
+                  data-bot-opt={`sugar-${opt.value}`}
                   onClick={() => setSelectedSugar(opt.value)}
                   className={`flex-none rounded-full border-[1.5px] px-4 py-1.5 text-sm font-semibold transition-colors ${
                     selectedSugar === opt.value
@@ -601,6 +707,7 @@ function ProductDetailPage() {
                 <button
                   key={opt.value}
                   type="button"
+                  data-bot-opt={`ice-${opt.value}`}
                   onClick={() => setSelectedIce(opt.value)}
                   className={`flex-none rounded-full border-[1.5px] px-4 py-1.5 text-sm font-semibold transition-colors ${
                     selectedIce === opt.value
@@ -621,6 +728,7 @@ function ProductDetailPage() {
                   <button
                     key={opt.value}
                     type="button"
+                    data-bot-opt={`topping-${opt.value}`}
                     onClick={() => toggleTopping(opt.value)}
                     className={`flex items-center justify-between gap-3 rounded-xl border-[1.5px] px-3.5 py-2.5 transition-colors ${
                       checked
@@ -801,6 +909,7 @@ function ProductDetailPage() {
 
           <button
             type="button"
+            data-bot-opt="add-to-cart"
             onClick={handleAddToCart}
             className="relative flex flex-none items-center justify-center gap-2 overflow-hidden rounded-full border-0 bg-[#1a1a1a] px-6 py-3 text-sm font-semibold text-white transition-transform active:scale-95"
           >
@@ -893,6 +1002,7 @@ function ProductDetailPage() {
           </Box>,
           document.body,
         )}
+      {cursorOverlay && createPortal(cursorOverlay, document.body)}
     </Page>
   );
 }

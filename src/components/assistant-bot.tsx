@@ -265,7 +265,7 @@ function AssistantBot() {
 
         if (action.type === "open_product") {
           navigate(`/product/${action.productId}`);
-          await wait(900);
+          await wait(1800);
         } else if (action.type === "add_to_cart") {
           store.set(assistantIntentAtom, {
             productId: action.productId,
@@ -277,7 +277,7 @@ function AssistantBot() {
           await waitForIntent(20000);
         } else if (action.type === "go_to_cart") {
           navigate("/cart");
-          await wait(700);
+          await wait(1500);
         }
       }
     } finally {
@@ -319,7 +319,7 @@ function AssistantBot() {
       if (actions.length > 0) {
         // Thu panel lại để người dùng thấy app tự thao tác.
         setOpen(false);
-        await wait(400);
+        await wait(800);
         await runActions(actions);
       }
       setBubble(reply);
