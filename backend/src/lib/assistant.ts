@@ -12,6 +12,7 @@ import {
 
 export type AssistantMessage = { role: "user" | "assistant"; content: string };
 export type AssistantCartLine = {
+  productId?: string;
   title: string;
   quantity: number;
   optionsLabel?: string;
@@ -26,6 +27,15 @@ export type AssistantAction =
       productId: string;
       title: string;
       quantity: number;
+      options?: ProductOptions;
+    }
+  // Sửa dòng đã có trong giỏ (thường là món vừa thêm): chỉ các trường có mặt
+  // mới bị đổi, phần còn lại giữ nguyên. App tự gộp với tuỳ chọn hiện có.
+  | {
+      type: "update_cart_item";
+      productId: string;
+      title: string;
+      quantity?: number;
       options?: ProductOptions;
     }
   | { type: "go_to_cart" };
@@ -44,6 +54,7 @@ Cách làm việc:
 - Nếu có nhiều món phù hợp, gợi ý tối đa 3 món và hỏi khách chọn món nào.
 - Đồ uống có 3 tuỳ chọn: size (S/M/L, mặc định M), mức đường và mức đá (100/70/50/30/0 %, mặc định 100) và topping (tuỳ chọn). Nếu khách chưa nói size, đường hoặc đá, hãy hỏi lại một câu gọn rồi mới thêm vào giỏ — trừ khi khách bảo "như thường"/"mặc định". Bánh ngọt không có các tuỳ chọn này.
 - Khi đã đủ thông tin, gọi add_to_cart. App sẽ tự mở trang món và chọn từng tuỳ chọn như có người thao tác thật.
+- Khi khách muốn đổi món vừa chọn hoặc món đang có trong giỏ (đổi size, bớt/thêm đường đá, thêm/bỏ topping, đổi số lượng), gọi update_cart_item với product_id lấy từ mục "Giỏ hàng hiện tại" và CHỈ truyền những trường cần đổi. KHÔNG gọi add_to_cart lại cho việc này, nếu không giỏ sẽ có thêm một món mới. Nếu giỏ có nhiều món khả dĩ, ưu tiên món khách vừa nhắc tới/vừa thêm gần nhất; không chắc thì hỏi lại.
 - Sau khi thêm món, hỏi khách có muốn thêm món khác không. Khi khách muốn thanh toán hoặc xem giỏ, gọi go_to_cart.
 - Bạn KHÔNG thể tự thanh toán. Luôn nói rõ khách cần bấm nút đặt hàng/thanh toán để xác nhận cuối cùng.
 - Chỉ nói chuyện về việc gọi món và menu của quán; từ chối lịch sự các chủ đề khác.`;
@@ -66,6 +77,27 @@ const FUNCTION_DECLARATIONS = [
         toppings: {
           type: "ARRAY",
           items: { type: "STRING", enum: TOPPINGS },
+        },
+      },
+      required: ["product_id"],
+    },
+  },
+  {
+    name: "update_cart_item",
+    description:
+      "Sửa tuỳ chọn hoặc số lượng của một món ĐÃ CÓ trong giỏ. Chỉ truyền các trường khách muốn đổi.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        product_id: { type: "STRING", description: "id món trong giỏ hàng" },
+        quantity: { type: "INTEGER", description: "Số lượng mới, 1-10" },
+        size: { type: "STRING", enum: SIZES },
+        sugar: { type: "STRING", enum: LEVELS, description: "Mức đường (%)" },
+        ice: { type: "STRING", enum: LEVELS, description: "Mức đá (%)" },
+        toppings: {
+          type: "ARRAY",
+          items: { type: "STRING", enum: TOPPINGS },
+          description: "Danh sách topping MỚI (thay thế hoàn toàn topping cũ)",
         },
       },
       required: ["product_id"],
@@ -144,6 +176,57 @@ function runTool(name: string, input: Record<string, unknown>): ToolOutcome {
         title: product.title,
         quantity,
         options,
+      },
+    };
+  }
+
+  if (name === "update_cart_item") {
+    const product = products.find((item) => item.id === input.product_id);
+    if (!product) {
+      return {
+        content: "Không có món này trong menu, hãy dùng đúng id trong giỏ hàng.",
+        isError: true,
+      };
+    }
+
+    const quantity =
+      input.quantity === undefined
+        ? undefined
+        : Math.min(10, Math.max(1, Math.round(Number(input.quantity)) || 1));
+
+    const customizable = !NON_CUSTOMIZABLE_CATEGORIES.includes(product.category);
+    const options: ProductOptions = {};
+    if (customizable) {
+      if (SIZES.includes(input.size as SizeOption)) options.size = input.size as SizeOption;
+      if (LEVELS.includes(input.sugar as LevelOption)) options.sugar = input.sugar as LevelOption;
+      if (LEVELS.includes(input.ice as LevelOption)) options.ice = input.ice as LevelOption;
+      if (Array.isArray(input.toppings)) {
+        options.toppings = Array.from(
+          new Set(
+            input.toppings.filter((item): item is ToppingOption =>
+              TOPPINGS.includes(item as ToppingOption),
+            ),
+          ),
+        );
+      }
+    }
+
+    if (quantity === undefined && Object.keys(options).length === 0) {
+      return {
+        content: "Chưa có thay đổi hợp lệ nào (món này có thể không có size/đường/đá).",
+        isError: true,
+      };
+    }
+
+    return {
+      content: `Đã gửi lệnh sửa ${product.title} trong giỏ, app đang thao tác.`,
+      fallbackReply: `Mình đã sửa ${product.title} trong giỏ rồi nhé. Bạn muốn chỉnh gì nữa không?`,
+      action: {
+        type: "update_cart_item",
+        productId: product.id,
+        title: product.title,
+        quantity,
+        options: Object.keys(options).length > 0 ? options : undefined,
       },
     };
   }
@@ -244,11 +327,11 @@ export async function runAssistant(
       ? cart
           .map(
             (line) =>
-              `- ${line.quantity} × ${line.title}${line.optionsLabel ? ` (${line.optionsLabel})` : ""}`,
+              `- ${line.quantity} × ${line.title}${line.productId ? ` [id: ${line.productId}]` : ""}${line.optionsLabel ? ` (${line.optionsLabel})` : ""}`,
           )
           .join("\n")
       : "(giỏ hàng đang trống)";
-  const systemInstruction = `${SYSTEM_PROMPT}\n\nMENU (id | tên | giá | danh mục):\n${MENU_TEXT}\n\nGiỏ hàng hiện tại của khách:\n${cartSummary}`;
+  const systemInstruction = `${SYSTEM_PROMPT}\n\nMENU (id | tên | giá | danh mục):\n${MENU_TEXT}\n\nGiỏ hàng hiện tại của khách (món cuối danh sách là món thêm gần nhất):\n${cartSummary}`;
 
   const contents: GeminiContent[] = history.map((message) => ({
     role: message.role === "user" ? "user" : "model",

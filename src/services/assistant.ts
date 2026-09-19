@@ -12,13 +12,20 @@ export type AssistantAction =
       quantity: number;
       options?: ProductOptions;
     }
+  | {
+      type: "update_cart_item";
+      productId: string;
+      title: string;
+      quantity?: number;
+      options?: ProductOptions;
+    }
   | { type: "go_to_cart" };
 
 export type AssistantResponse = { reply: string; actions: AssistantAction[] };
 
 export function sendAssistantMessage(payload: {
   messages: AssistantMessage[];
-  cart: { title: string; quantity: number; optionsLabel?: string }[];
+  cart: { productId: string; title: string; quantity: number; optionsLabel?: string }[];
 }) {
   return apiPost<AssistantResponse>("/assistant/chat", payload);
 }

@@ -59,6 +59,10 @@ function parseCart(value: unknown): AssistantCartLine[] {
     item && typeof item.title === "string" && Number.isFinite(item.quantity)
       ? [
           {
+            productId:
+              typeof item.productId === "string"
+                ? item.productId.slice(0, 100)
+                : undefined,
             title: item.title.slice(0, 100),
             quantity: Number(item.quantity),
             optionsLabel:

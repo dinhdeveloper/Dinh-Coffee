@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Box, Icon, Page, Text, useNavigate } from "zmp-ui";
 import { fetchProducts, Product } from "@/services/products";
 import ProductCard from "@/components/product-card";
+import { ProductCardSkeletonList } from "@/components/product-card-skeleton";
 
 const keywords = ["Trà sữa", "Cà phê", "Trà trái cây", "Bánh ngọt", "Matcha"];
 
@@ -105,12 +106,7 @@ function SearchPage() {
       <Box className="mt-5 w-full flex-1">
         {loading && (
           <Box className="grid grid-cols-2 gap-4">
-            {[0, 1, 2, 3].map((i) => (
-              <Box
-                key={i}
-                className="h-40 animate-pulse rounded-xl bg-gray-200"
-              />
-            ))}
+            <ProductCardSkeletonList count={4} />
           </Box>
         )}
 

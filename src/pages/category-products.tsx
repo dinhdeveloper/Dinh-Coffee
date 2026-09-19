@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Box, Icon, Page, Text, useNavigate, useParams } from "zmp-ui";
 import { fetchProducts, Product } from "@/services/products";
 import ProductCard from "@/components/product-card";
+import { ProductCardSkeletonList } from "@/components/product-card-skeleton";
 
 function CategoryProductsPage() {
   const navigate = useNavigate();
@@ -78,12 +79,7 @@ function CategoryProductsPage() {
       ========================== */}
       {loading ? (
         <Box className="mt-5 grid grid-cols-2 gap-4">
-          {[0, 1, 2, 3].map((i) => (
-            <Box
-              key={i}
-              className="h-52 animate-pulse rounded-lg bg-gray-200"
-            />
-          ))}
+          <ProductCardSkeletonList count={4} />
         </Box>
       ) : error ? (
         <Box className="flex flex-1 flex-col items-center justify-center gap-3 pb-16 text-center">

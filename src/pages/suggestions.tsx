@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Box, Icon, Page, Text, useNavigate } from "zmp-ui";
 import { fetchProducts, Product } from "@/services/products";
 import ProductCard from "@/components/product-card";
+import { ProductCardSkeletonList } from "@/components/product-card-skeleton";
 
 function SuggestionsPage() {
   const navigate = useNavigate();
@@ -130,12 +131,7 @@ function SuggestionsPage() {
       ========================== */}
       {loading ? (
         <Box className="mt-5 grid grid-cols-2 gap-3">
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <Box
-              key={i}
-              className="h-52 animate-pulse rounded-2xl bg-gray-200"
-            />
-          ))}
+          <ProductCardSkeletonList count={6} />
         </Box>
       ) : error ? (
         <Box className="flex flex-1 flex-col items-center justify-center gap-3 pb-16 text-center">

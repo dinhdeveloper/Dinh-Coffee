@@ -9,6 +9,7 @@ import { cartCountAtom } from "@/store/cart";
 import StoreStories from "@/components/store-stories";
 import FeatureCards from "@/components/feature-cards";
 import ProductCard from "@/components/product-card";
+import { ProductCardSkeletonList } from "@/components/product-card-skeleton";
 import {
   getStoredZaloUser,
   ZALO_AUTH_CHANGED_EVENT,
@@ -342,12 +343,7 @@ function HomePage() {
             className="mt-3 flex gap-4 overflow-x-auto pb-2"
             style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
           >
-            {[0, 1, 2].map((i) => (
-              <Box
-                key={i}
-                className="h-52 w-40 flex-none animate-pulse rounded-2xl bg-gray-200"
-              />
-            ))}
+            <ProductCardSkeletonList count={3} className="w-40 flex-none" />
           </Box>
         ) : error ? (
           <Box className="mt-3 flex flex-col items-center gap-2 rounded-lg bg-white/50 py-8 text-center">
