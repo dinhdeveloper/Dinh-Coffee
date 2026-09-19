@@ -24,11 +24,6 @@ import {
 } from "@/services/voice";
 import { assistantIntentAtom } from "@/store/assistant";
 import { cartItemsAtom, cartLineKey } from "@/store/cart";
-import {
-  buildCartLineId,
-  computeOptionsSurcharge,
-  describeOptions,
-} from "@/services/customization";
 
 const BOT_SIZE = 56;
 const EDGE_GAP = 12;
@@ -79,10 +74,6 @@ function loadPosition(): Position {
     // localStorage có thể bị chặn — dùng vị trí mặc định.
   }
   return defaultPosition();
-}
-
-function formatPrice(value: number) {
-  return `${value.toLocaleString("vi-VN")}đ`;
 }
 
 function wait(ms: number) {
@@ -302,56 +293,6 @@ function AssistantBot() {
     [store],
   );
 
-  // Sửa dòng giỏ hàng của món vừa nhắc tới (dòng cuối cùng của món đó): gộp
-  // tuỳ chọn mới vào tuỳ chọn cũ, tính lại giá đơn vị + lineId, và cộng dồn
-  // nếu trùng với một dòng khác.
-  const applyCartUpdate = (
-    action: Extract<AssistantAction, { type: "update_cart_item" }>,
-  ) => {
-    store.set(cartItemsAtom, (prev) => {
-      let index = -1;
-      prev.forEach((item, i) => {
-        if (item.id === action.productId) index = i;
-      });
-      if (index === -1) return prev;
-
-      const current = prev[index];
-      const oldOptions = current.options;
-      const hasNewOptions = Boolean(action.options && oldOptions);
-      const options = hasNewOptions
-        ? { ...oldOptions, ...action.options }
-        : oldOptions;
-      const quantity = action.quantity ?? current.quantity;
-
-      const basePrice =
-        Number(current.price.replace(/[^\d]/g, "")) -
-        computeOptionsSurcharge(oldOptions);
-      const lineId = buildCartLineId(current.id, options);
-      const updated = {
-        ...current,
-        lineId,
-        options,
-        optionsLabel: describeOptions(options),
-        price: formatPrice(basePrice + computeOptionsSurcharge(options)),
-        quantity,
-      };
-
-      const duplicateIndex = prev.findIndex(
-        (item, i) => i !== index && cartLineKey(item) === lineId,
-      );
-      if (duplicateIndex === -1) {
-        return prev.map((item, i) => (i === index ? updated : item));
-      }
-      return prev
-        .filter((_, i) => i !== index)
-        .map((item) =>
-          cartLineKey(item) === lineId
-            ? { ...item, quantity: item.quantity + quantity }
-            : item,
-        );
-    });
-  };
-
   // Thực thi lần lượt các lệnh AI trả về, có độ trễ để nhìn như người thật thao tác.
   const runActions = async (actions: AssistantAction[]) => {
     cancelRef.current = false;
@@ -375,10 +316,28 @@ function AssistantBot() {
           navigate(`/product/${action.productId}`);
           await waitForIntent(20000);
         } else if (action.type === "update_cart_item") {
+          // Dòng cuối cùng của món đó trong giỏ = món khách vừa nhắc tới.
+          const lines = store.get(cartItemsAtom);
+          const target = [...lines]
+            .reverse()
+            .find((item) => item.id === action.productId);
+          if (!target) continue;
+
+          // Mở giỏ → bấm vào món → trang sản phẩm ở chế độ sửa, bot chọn lại
+          // từng tuỳ chọn như lúc đặt món rồi bấm cập nhật.
           navigate("/cart");
           await wait(1200);
-          applyCartUpdate(action);
-          await wait(1200);
+          store.set(assistantIntentAtom, {
+            productId: action.productId,
+            quantity: action.quantity,
+            options: action.options,
+            editLineKey: cartLineKey(target),
+            status: "pending",
+          });
+          navigate(
+            `/product/${action.productId}?line=${encodeURIComponent(cartLineKey(target))}`,
+          );
+          await waitForIntent(30000);
         } else if (action.type === "go_to_cart") {
           navigate("/cart");
           await wait(1500);

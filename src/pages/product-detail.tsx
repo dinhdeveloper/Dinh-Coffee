@@ -231,7 +231,8 @@ function ProductDetailPage() {
     status === "ready" &&
     !!product &&
     assistantIntent?.status === "pending" &&
-    assistantIntent.productId === product.id;
+    assistantIntent.productId === product.id &&
+    (assistantIntent.editLineKey ?? null) === editLineKey;
 
   useEffect(() => {
     if (!intentPending || !assistantIntent || !product) return;
@@ -293,9 +294,11 @@ function ProductDetailPage() {
       ),
     );
 
-    if (assistantIntent.quantity > 1) {
+    const targetQuantity = assistantIntent.quantity;
+    const currentQuantity = editingItemRef.current?.quantity ?? 1;
+    if (targetQuantity !== undefined && targetQuantity !== currentQuantity) {
       step(
-        () => setQuantity(assistantIntent.quantity),
+        () => setQuantity(targetQuantity),
         1000,
         "quantity-plus",
       );
@@ -317,6 +320,18 @@ function ProductDetailPage() {
         1000,
         `topping-${topping}`,
       );
+    }
+    // Sửa món: danh sách topping mới thay thế hoàn toàn, nên bỏ chọn topping cũ.
+    if (assistantIntent.editLineKey && opts?.toppings) {
+      const wanted = opts.toppings;
+      for (const topping of editingItemRef.current?.options?.toppings ?? []) {
+        if (wanted.includes(topping)) continue;
+        step(
+          () => setSelectedToppings((prev) => prev.filter((t) => t !== topping)),
+          1000,
+          `topping-${topping}`,
+        );
+      }
     }
     step(() => setAutoAdd(true), 900, "add-to-cart");
 

@@ -6,8 +6,11 @@ import type { ProductOptions } from "@/services/customization";
 // sang "done" để bot làm bước tiếp theo.
 export type AssistantIntent = {
   productId: string;
-  quantity: number;
+  // Không có khi lệnh sửa món không đổi số lượng.
+  quantity?: number;
   options?: ProductOptions;
+  // Có khi bot sửa một dòng đã có trong giỏ (trang sản phẩm mở ở chế độ sửa).
+  editLineKey?: string;
   status: "pending" | "done";
 };
 
