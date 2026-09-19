@@ -5,6 +5,7 @@ import {
   AssistantMessage,
   GeminiError,
   runAssistant,
+  transcribeAudio,
 } from "@/lib/assistant";
 
 const MAX_MESSAGES = 20;
@@ -91,6 +92,46 @@ export async function chat(req: Request, res: Response, next: NextFunction) {
     res.json(await runAssistant(messages, parseCart(req.body?.cart)));
   } catch (err) {
     // Hết hạn mức miễn phí của Gemini -> báo 429 để app hiện đúng lời nhắn.
+    if (err instanceof GeminiError && err.status === 429) {
+      console.error(err.message);
+      res.status(429).json({ message: "Trợ lý đang quá tải" });
+      return;
+    }
+    next(err);
+  }
+}
+
+// ~15 giây WAV 16kHz/16-bit mono ≈ 480KB -> base64 ≈ 640KB.
+const MAX_AUDIO_BASE64_LENGTH = 2_000_000;
+
+export async function transcribe(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    if (!env.gemini.apiKey) {
+      res.status(503).json({ message: "Trợ lý AI chưa được cấu hình" });
+      return;
+    }
+
+    if (isRateLimited(req.ip ?? "unknown")) {
+      res.status(429).json({ message: "Bạn nói nhanh quá, đợi chút nhé" });
+      return;
+    }
+
+    const audio = req.body?.audio;
+    if (
+      typeof audio !== "string" ||
+      !audio ||
+      audio.length > MAX_AUDIO_BASE64_LENGTH
+    ) {
+      res.status(400).json({ message: "Âm thanh không hợp lệ" });
+      return;
+    }
+
+    res.json({ text: await transcribeAudio(audio, "audio/wav") });
+  } catch (err) {
     if (err instanceof GeminiError && err.status === 429) {
       console.error(err.message);
       res.status(429).json({ message: "Trợ lý đang quá tải" });

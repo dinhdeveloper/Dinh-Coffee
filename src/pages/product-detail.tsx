@@ -1,8 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { createPortal } from "react-dom";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { Box, Icon, Page, Text, useNavigate, useParams } from "zmp-ui";
+import { useAtom, useAtomValue } from "jotai";
+import {
+  Box,
+  Icon,
+  Page,
+  Text,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "zmp-ui";
 import { ApiError } from "@/services/api";
 import { fetchProductById, fetchProducts, Product } from "@/services/products";
 import {
@@ -43,6 +50,9 @@ function formatPrice(value: number) {
 function ProductDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+  // Mở từ giỏ hàng để sửa 1 dòng: /product/:id?line=<lineKey>.
+  const editLineKey = new URLSearchParams(location.search).get("line");
 
   const [product, setProduct] = useState<Product | null>(null);
   const [status, setStatus] = useState<
@@ -72,7 +82,12 @@ function ProductDetailPage() {
   const [reviewComment, setReviewComment] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
-  const setCartItems = useSetAtom(cartItemsAtom);
+  const [cartItems, setCartItems] = useAtom(cartItemsAtom);
+  const editingItem = editLineKey
+    ? cartItems.find((item) => cartLineKey(item) === editLineKey)
+    : undefined;
+  const editingItemRef = useRef(editingItem);
+  editingItemRef.current = editingItem;
   const cartCount = useAtomValue(cartCountAtom);
   const [assistantIntent, setAssistantIntent] = useAtom(assistantIntentAtom);
   const [autoAdd, setAutoAdd] = useState(false);
@@ -107,6 +122,19 @@ function ProductDetailPage() {
       cancelled = true;
     };
   }, [id]);
+
+  // Sửa dòng trong giỏ: điền sẵn số lượng + tuỳ chọn hiện có (chỉ 1 lần khi tải xong).
+  useEffect(() => {
+    const item = editingItemRef.current;
+    if (status !== "ready" || !item) return;
+    setQuantity(item.quantity);
+    if (item.options) {
+      setSelectedSize(item.options.size);
+      setSelectedSugar(item.options.sugar);
+      setSelectedIce(item.options.ice);
+      setSelectedToppings(item.options.toppings ?? []);
+    }
+  }, [status, editLineKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -403,6 +431,40 @@ function ProductDetailPage() {
   const handleAddToCart = () => {
     const lineId = buildCartLineId(product.id, options);
     const priceString = formatPrice(finalUnitPrice);
+
+    if (editingItem && editLineKey) {
+      // Cập nhật đúng dòng đang sửa (đổi tuỳ chọn thì đổi lineId); nếu trùng
+      // dòng khác thì gộp số lượng vào dòng đó.
+      const updated = {
+        ...editingItem,
+        lineId,
+        price: priceString,
+        quantity,
+        options,
+        optionsLabel,
+      };
+      setCartItems((prev) => {
+        const duplicate = prev.find(
+          (item) =>
+            cartLineKey(item) === lineId && cartLineKey(item) !== editLineKey,
+        );
+        if (duplicate) {
+          return prev
+            .filter((item) => cartLineKey(item) !== editLineKey)
+            .map((item) =>
+              cartLineKey(item) === lineId
+                ? { ...item, quantity: item.quantity + quantity }
+                : item,
+            );
+        }
+        return prev.map((item) =>
+          cartLineKey(item) === editLineKey ? updated : item,
+        );
+      });
+      setAdded(true);
+      setTimeout(() => navigate(-1), 700);
+      return;
+    }
 
     setCartItems((prev) => {
       const existing = prev.find((item) => cartLineKey(item) === lineId);
@@ -921,7 +983,7 @@ function ProductDetailPage() {
               }}
             >
               <Icon icon="zi-plus" size={16} />
-              Thêm vào giỏ
+              {editingItem ? "Cập nhật giỏ hàng" : "Thêm vào giỏ"}
             </span>
 
             <span
@@ -932,7 +994,7 @@ function ProductDetailPage() {
               }}
             >
               <Icon icon="zi-check" size={16} />
-              Đã thêm
+              {editingItem ? "Đã cập nhật" : "Đã thêm"}
             </span>
           </button>
         </Box>,

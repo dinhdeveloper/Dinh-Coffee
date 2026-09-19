@@ -18,7 +18,8 @@ export function createApp() {
   const app = express();
 
   app.use(cors({ origin: env.corsOrigin }));
-  app.use(express.json());
+  // 3mb: đủ cho đoạn ghi âm ngắn gửi lên /assistant/transcribe (base64).
+  app.use(express.json({ limit: "3mb" }));
 
   app.get("/health", (req, res) => {
     res.json({ status: "ok" });

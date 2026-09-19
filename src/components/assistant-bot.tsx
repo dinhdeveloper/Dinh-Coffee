@@ -14,6 +14,14 @@ import {
   sendAssistantMessage,
 } from "@/services/assistant";
 import { ApiError } from "@/services/api";
+import {
+  Recorder,
+  speak,
+  startRecording,
+  stopSpeaking,
+  transcribeAudio,
+  unlockSpeech,
+} from "@/services/voice";
 import { assistantIntentAtom } from "@/store/assistant";
 import { cartItemsAtom } from "@/store/cart";
 
@@ -22,6 +30,7 @@ const EDGE_GAP = 12;
 const DRAG_THRESHOLD = 6;
 const POSITION_KEY = "assistant_bot_position";
 const GREETED_KEY = "assistant_greeted";
+const VOICE_KEY = "assistant_voice";
 
 const GREETING = "Chào bạn! 👋 Hôm nay bạn muốn uống gì nè?";
 const QUICK_PICKS = [
@@ -123,6 +132,16 @@ function AssistantBot() {
   const [sending, setSending] = useState(false);
   const [running, setRunning] = useState(false);
   const [bubble, setBubble] = useState<string | null>(null);
+  const [voiceOn, setVoiceOn] = useState(() => {
+    try {
+      return localStorage.getItem(VOICE_KEY) !== "0";
+    } catch {
+      return true;
+    }
+  });
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
 
   const dragRef = useRef<{
     startX: number;
@@ -132,6 +151,9 @@ function AssistantBot() {
   } | null>(null);
   const cancelRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const recorderRef = useRef<Recorder | null>(null);
+  const voiceOnRef = useRef(voiceOn);
+  voiceOnRef.current = voiceOn;
 
   useEffect(() => {
     setPosition(loadPosition());
@@ -166,6 +188,24 @@ function AssistantBot() {
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [messages, sending, open]);
+
+  // Mở khung chat lúc chưa nói gì thì bot lên tiếng hỏi khách muốn mua gì.
+  // (Nếu iOS chưa cho phát tiếng thì chỉ hiện chữ; bấm mic là mở khoá.)
+  useEffect(() => {
+    if (open && messages.length === 1 && voiceOnRef.current) {
+      speak(`${GREETING} Bạn muốn mua gì, mình đi mua giúp bạn nhé?`);
+    }
+    if (!open) stopSpeaking();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  useEffect(
+    () => () => {
+      recorderRef.current?.stop();
+      stopSpeaking();
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!bubble || running) return;
@@ -315,6 +355,7 @@ function AssistantBot() {
 
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
       setSending(false);
+      if (voiceOnRef.current) speak(reply);
 
       if (actions.length > 0) {
         // Thu panel lại để người dùng thấy app tự thao tác.
@@ -333,6 +374,67 @@ function AssistantBot() {
       setMessages((prev) => [...prev, { role: "assistant", content: message }]);
     } finally {
       setSending(false);
+    }
+  };
+
+  const toggleVoice = () => {
+    const next = !voiceOn;
+    setVoiceOn(next);
+    if (!next) stopSpeaking();
+    try {
+      localStorage.setItem(VOICE_KEY, next ? "1" : "0");
+    } catch {
+      // bỏ qua
+    }
+  };
+
+  // Bấm mic → nói → im lặng thì tự dừng, chép thành chữ rồi gửi cho bot như
+  // khi gõ. Bấm lần nữa khi đang nghe để dừng sớm.
+  const handleMic = async () => {
+    if (recording) {
+      recorderRef.current?.stop();
+      return;
+    }
+    if (sending || running || transcribing) return;
+
+    unlockSpeech();
+    stopSpeaking();
+    setVoiceError(null);
+
+    try {
+      const recorder = await startRecording();
+      recorderRef.current = recorder;
+      setRecording(true);
+
+      const audio = await recorder.result;
+      recorderRef.current = null;
+      setRecording(false);
+
+      if (!audio) {
+        setVoiceError("Mình chưa nghe thấy gì, bạn bấm mic và nói lại nhé.");
+        return;
+      }
+
+      setTranscribing(true);
+      const text = await transcribeAudio(audio);
+      setTranscribing(false);
+      if (!text) {
+        setVoiceError("Mình nghe chưa rõ, bạn nói lại giúp mình nhé.");
+        return;
+      }
+      await send(text);
+    } catch (err) {
+      recorderRef.current = null;
+      setRecording(false);
+      setTranscribing(false);
+      const name = (err as { name?: string })?.name;
+      setVoiceError(
+        name === "NotAllowedError" || name === "SecurityError"
+          ? "Bạn hãy cho phép dùng micro để nói chuyện với mình nhé."
+          : err instanceof ApiError && err.status === 429
+            ? "Trợ lý đang hơi quá tải, bạn đợi chút rồi thử lại nhé."
+            : "Không dùng được micro lúc này, bạn thử gõ chữ nhé.",
+      );
     }
   };
 
@@ -373,6 +475,15 @@ function AssistantBot() {
                 </div>
               </div>
             </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                aria-label={voiceOn ? "Tắt tiếng bot" : "Bật tiếng bot"}
+                onClick={toggleVoice}
+                className="flex h-8 w-8 items-center justify-center rounded-full border-0 bg-gray-100 p-0 text-base leading-none text-gray-500"
+              >
+                {voiceOn ? "🔊" : "🔇"}
+              </button>
             <button
               type="button"
               aria-label="Đóng"
@@ -381,6 +492,7 @@ function AssistantBot() {
             >
               ×
             </button>
+            </div>
           </div>
 
           <div
@@ -399,6 +511,10 @@ function AssistantBot() {
                 {message.content}
               </div>
             ))}
+
+            {voiceError && (
+              <div className="self-start text-xs text-red-500">{voiceError}</div>
+            )}
 
             {sending && (
               <div className="self-start rounded-2xl border border-gray-100 bg-white px-3.5 py-2 text-sm text-gray-400">
@@ -426,10 +542,41 @@ function AssistantBot() {
             onSubmit={handleSubmit}
             className="flex flex-none items-center gap-2 border-t border-gray-100 px-3 py-2.5"
           >
+            <button
+              type="button"
+              aria-label={recording ? "Dừng nghe" : "Nói với bot"}
+              onClick={() => void handleMic()}
+              disabled={sending || running || transcribing}
+              className={`flex h-10 w-10 flex-none items-center justify-center rounded-full border-0 p-0 disabled:opacity-40 ${
+                recording
+                  ? "animate-pulse bg-red-500 text-white"
+                  : "bg-[#f3eeff] text-[#5b3fb8]"
+              }`}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="9" y="3" width="6" height="12" rx="3" />
+                <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+              </svg>
+            </button>
             <input
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="Nhắn cho mình nhé…"
+              placeholder={
+                recording
+                  ? "Đang nghe bạn nói…"
+                  : transcribing
+                    ? "Đang chép lời bạn nói…"
+                    : "Nhắn hoặc bấm mic để nói…"
+              }
               disabled={sending || running}
               className="min-w-0 flex-1 rounded-full border border-gray-200 bg-white px-4 py-2.5 text-base outline-none focus:border-[#a78bfa]"
             />

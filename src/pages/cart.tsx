@@ -550,7 +550,11 @@ function CartPage() {
                 onIncrease={() => updateQuantity(lineKey, 1)}
                 onDecrease={() => updateQuantity(lineKey, -1)}
                 onRemove={() => removeItem(lineKey)}
-                onOpenDetail={() => navigate(`/product/${item.id}`)}
+                onOpenDetail={() =>
+                  navigate(
+                    `/product/${item.id}?line=${encodeURIComponent(lineKey)}`,
+                  )
+                }
               />
             );
           })}

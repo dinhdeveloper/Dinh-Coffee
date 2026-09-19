@@ -304,3 +304,59 @@ export async function runAssistant(
     actions,
   };
 }
+
+// Chép giọng nói (WAV base64) thành chữ tiếng Việt — dùng cho khách nói với bot.
+export async function transcribeAudio(
+  audioBase64: string,
+  mimeType: string,
+): Promise<string> {
+  const models = [env.gemini.model, ...env.gemini.fallbackModels];
+  let lastError: unknown;
+
+  for (const model of models) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": env.gemini.apiKey,
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    text: "Chép lại chính xác lời nói tiếng Việt trong đoạn âm thanh này (khách đang gọi món cà phê/trà/bánh). Chỉ trả về đúng lời đã nói, không giải thích, không thêm dấu ngoặc. Nếu không có tiếng nói rõ ràng thì trả về chuỗi rỗng.",
+                  },
+                  { inlineData: { mimeType, data: audioBase64 } },
+                ],
+              },
+            ],
+            generationConfig: { maxOutputTokens: 200, temperature: 0 },
+          }),
+        },
+      );
+
+      const data = (await res.json().catch(() => ({}))) as GeminiResponse;
+      if (!res.ok) {
+        throw new GeminiError(res.status, data.error?.message ?? "lỗi không rõ");
+      }
+
+      return (data.candidates?.[0]?.content?.parts ?? [])
+        .map((part) => part.text ?? "")
+        .join("")
+        .trim();
+    } catch (err) {
+      lastError = err;
+      const retryable =
+        err instanceof GeminiError && [404, 429, 500, 503].includes(err.status);
+      if (!retryable) throw err;
+      console.warn(`[assistant] ${model} lỗi khi chép giọng nói: ${err.message}`);
+    }
+  }
+
+  throw lastError;
+}
