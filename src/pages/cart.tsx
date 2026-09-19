@@ -6,7 +6,7 @@ import { Box, Icon, Page, Text, useNavigate } from "zmp-ui";
 import { CartItem, cartItemsAtom, cartLineKey, cartTotalAtom } from "@/store/cart";
 import { ApiError } from "@/services/api";
 import { checkoutOrder, fetchOrderStatus } from "@/services/orders";
-import { addOrderToHistory } from "@/services/order-history";
+import { addOrderToHistory, announceOrderPaid } from "@/services/order-history";
 import { fetchUser } from "@/services/users";
 import {
   getStoredZaloUser,
@@ -160,7 +160,7 @@ function CartItemCard({
                 e.stopPropagation();
                 onIncrease();
               }}
-              className="flex h-6 w-6 items-center justify-center rounded-full border-0 bg-[#1a1a1a] p-0 text-white transition-transform active:scale-90"
+              className="flex h-6 w-6 items-center justify-center rounded-full border-0 btn-liquid p-0 text-white transition-transform active:scale-90"
             >
               <Text className="font-bold leading-none">+</Text>
             </button>
@@ -284,6 +284,7 @@ function CartPage() {
         if (order.status === "paid") {
           setItems([]);
           addOrderToHistory(orderId);
+          announceOrderPaid(orderId);
           setPhase("success");
           setTimeout(() => {
             setPhase("idle");
@@ -531,7 +532,7 @@ function CartPage() {
           <button
             type="button"
             onClick={() => navigate("/home")}
-            className="mt-2 rounded-full border-0 bg-[#1a1a1a] px-5 py-2.5 text-sm font-semibold text-white active:scale-95"
+            className="mt-2 rounded-full border-0 btn-liquid px-5 py-2.5 text-sm font-medium text-white active:scale-95"
           >
             Khám phá món ngon
           </button>
@@ -595,7 +596,7 @@ function CartPage() {
 
                 <span
                   className={`flex h-6 w-11 flex-none items-center rounded-full p-0.5 transition-colors ${
-                    usePoints ? "bg-[#1a1a1a]" : "bg-gray-300"
+                    usePoints ? "btn-liquid" : "bg-gray-300"
                   }`}
                 >
                   <span
@@ -633,7 +634,7 @@ function CartPage() {
                 type="button"
                 onClick={handleOpenAddress}
                 disabled={phase === "creating" || phase === "waiting"}
-                className="relative flex h-11 flex-none items-center justify-center gap-2 overflow-hidden rounded-full border-0 bg-[#1a1a1a] px-6 text-sm font-semibold text-white transition-transform active:scale-95 disabled:opacity-80"
+                className="relative flex h-11 flex-none items-center justify-center gap-2 overflow-hidden rounded-full border-0 btn-liquid px-6 text-sm font-medium text-white transition-transform active:scale-95 disabled:opacity-80"
               >
                 <span
                   className="flex items-center gap-2 transition-all duration-300"
@@ -700,14 +701,14 @@ function CartPage() {
                     type="button"
                     onClick={handleLoginForAddress}
                     disabled={isLoggingIn}
-                    className="mt-2 w-full rounded-full border-0 bg-[#1a1a1a] py-3 text-sm font-semibold text-white active:scale-95 disabled:opacity-80"
+                    className="mt-2 w-full rounded-full border-0 btn-liquid py-3 text-sm font-medium text-white active:scale-95 disabled:opacity-80"
                   >
                     {isLoggingIn ? "Đang đăng nhập..." : "Đăng nhập với Zalo"}
                   </button>
                 </Box>
               ) : addressLoading ? (
                 <Box className="flex flex-col items-center gap-3 py-10">
-                  <span className="h-7 w-7 animate-spin rounded-full border-2 border-gray-200 border-t-[#1a1a1a]" />
+                  <span className="h-7 w-7 animate-spin rounded-full border-2 border-gray-200 border-t-[#006AF5]" />
                   <Text size="small" className="text-gray-400">
                     Đang tải địa chỉ...
                   </Text>
@@ -727,7 +728,7 @@ function CartPage() {
                           onClick={() => setChosenAddressId(item.id)}
                           className={`cursor-pointer rounded-2xl border p-3 transition-colors ${
                             isSelected
-                              ? "border-[#1a1a1a] bg-white shadow-[0_8px_20px_rgba(0,0,0,0.08)]"
+                              ? "border-[#006AF5] bg-white shadow-[0_8px_20px_rgba(0,0,0,0.08)]"
                               : "border-gray-200 bg-white"
                           }`}
                         >
@@ -735,7 +736,7 @@ function CartPage() {
                             <Box
                               className={`mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full border-2 ${
                                 isSelected
-                                  ? "border-[#1a1a1a] bg-[#1a1a1a]"
+                                  ? "border-[#006AF5] btn-liquid"
                                   : "border-gray-300"
                               }`}
                             >
@@ -779,7 +780,7 @@ function CartPage() {
                   <button
                     type="button"
                     onClick={handleUseChosenAddress}
-                    className="mt-4 w-full rounded-full border-0 bg-[#1a1a1a] py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98]"
+                    className="mt-4 w-full rounded-full border-0 btn-liquid py-3 text-sm font-medium text-white transition-transform active:scale-[0.98]"
                   >
                     Dùng địa chỉ này
                   </button>
@@ -801,7 +802,7 @@ function CartPage() {
                       onChange={(e) =>
                         setAddressForm((prev) => ({ ...prev, receiver: e.target.value }))
                       }
-                      className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
+                      className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#006AF5]"
                     />
                     <input
                       type="tel"
@@ -810,7 +811,7 @@ function CartPage() {
                       onChange={(e) =>
                         setAddressForm((prev) => ({ ...prev, phone: e.target.value }))
                       }
-                      className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
+                      className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#006AF5]"
                     />
                     <input
                       type="text"
@@ -819,7 +820,7 @@ function CartPage() {
                       onChange={(e) =>
                         setAddressForm((prev) => ({ ...prev, detail: e.target.value }))
                       }
-                      className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
+                      className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#006AF5]"
                     />
                     <input
                       type="text"
@@ -828,7 +829,7 @@ function CartPage() {
                       onChange={(e) =>
                         setAddressForm((prev) => ({ ...prev, note: e.target.value }))
                       }
-                      className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
+                      className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#006AF5]"
                     />
                   </Box>
 
@@ -841,7 +842,7 @@ function CartPage() {
                   <button
                     type="button"
                     onClick={handleSaveNewAddress}
-                    className="mt-4 w-full rounded-full border-0 bg-[#1a1a1a] py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98]"
+                    className="mt-4 w-full rounded-full border-0 btn-liquid py-3 text-sm font-medium text-white transition-transform active:scale-[0.98]"
                   >
                     Tiếp tục thanh toán
                   </button>
@@ -885,7 +886,7 @@ function CartPage() {
               {phase === "waiting" && (
                 <>
                   <Box className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gray-50">
-                    <span className="h-7 w-7 animate-spin rounded-full border-2 border-gray-200 border-t-[#1a1a1a]" />
+                    <span className="h-7 w-7 animate-spin rounded-full border-2 border-gray-200 border-t-[#006AF5]" />
                   </Box>
                   <Text.Title size="normal" className="mt-4 font-bold text-[#1a1a1a]">
                     Đang chờ xác nhận thanh toán
@@ -936,7 +937,7 @@ function CartPage() {
                   <button
                     type="button"
                     onClick={() => handleCheckout()}
-                    className="mt-5 w-full rounded-full border-0 bg-[#1a1a1a] py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98]"
+                    className="mt-5 w-full rounded-full border-0 btn-liquid py-3 text-sm font-medium text-white transition-transform active:scale-[0.98]"
                   >
                     Thử lại
                   </button>

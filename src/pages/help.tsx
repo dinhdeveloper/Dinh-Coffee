@@ -74,7 +74,7 @@ function HelpPage() {
       ========================== */}
       <Box className="mt-5 flex-none rounded-2xl border border-white/40 bg-white/15 p-4 shadow-[0_8px_24px_rgba(0,0,0,0.07)] backdrop-blur-xl">
         <Box className="flex items-center gap-3">
-          <Box className="flex h-12 w-12 flex-none items-center justify-center rounded-full bg-[#1a1a1a] text-xl text-white">
+          <Box className="flex h-12 w-12 flex-none items-center justify-center rounded-full btn-liquid text-xl text-white">
             💬
           </Box>
           <Box className="min-w-0 flex-1">
@@ -90,7 +90,7 @@ function HelpPage() {
         <Box className="mt-4 flex gap-2.5">
           <a
             href={`tel:${SUPPORT_PHONE}`}
-            className="flex flex-1 items-center justify-center gap-2 rounded-full border-0 bg-[#1a1a1a] py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98]"
+            className="flex flex-1 items-center justify-center gap-2 rounded-full border-0 btn-liquid py-3 text-sm font-medium text-white transition-transform active:scale-[0.98]"
           >
             <Icon icon="zi-call" size={16} />
             Gọi {SUPPORT_PHONE_DISPLAY}

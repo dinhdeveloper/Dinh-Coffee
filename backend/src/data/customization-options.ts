@@ -30,6 +30,13 @@ export const TOPPING_INFO: Record<ToppingOption, { label: string; price: number 
 // Món thuộc các danh mục này (bánh, đồ ăn kèm...) không tuỳ biến size/đường/đá.
 export const NON_CUSTOMIZABLE_CATEGORIES = ["Bánh ngọt"];
 
+// Chỉ trà sữa mới có topping — phải khớp src/services/customization.ts.
+export const TOPPING_CATEGORIES = ["Trà sữa"];
+
+export function supportsToppings(category: string): boolean {
+  return TOPPING_CATEGORIES.includes(category);
+}
+
 export function computeOptionsSurcharge(options?: ProductOptions): number {
   if (!options) return 0;
 

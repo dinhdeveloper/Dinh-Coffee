@@ -31,6 +31,7 @@ import {
   computeOptionsSurcharge,
   describeOptions,
   isCustomizableCategory,
+  supportsToppings,
   LevelOption,
   LEVEL_OPTIONS,
   SizeOption,
@@ -67,7 +68,7 @@ function ProductDetailPage() {
     y: number;
     tapping: boolean;
   } | null>(null);
-  const [selectedSize, setSelectedSize] = useState<SizeOption>("M");
+  const [selectedSize, setSelectedSize] = useState<SizeOption>("S");
   const [selectedSugar, setSelectedSugar] = useState<LevelOption>("100");
   const [selectedIce, setSelectedIce] = useState<LevelOption>("100");
   const [selectedToppings, setSelectedToppings] = useState<ToppingOption[]>([]);
@@ -102,7 +103,7 @@ function ProductDetailPage() {
     setStatus("loading");
     setMounted(false);
     setQuantity(1);
-    setSelectedSize("M");
+    setSelectedSize("S");
     setSelectedSugar("100");
     setSelectedIce("100");
     setSelectedToppings([]);
@@ -366,7 +367,7 @@ function ProductDetailPage() {
     return (
       <Page className="flex h-full min-h-0 flex-col overflow-hidden bg-transparent">
         <Box className="h-[54vh] w-full flex-none animate-pulse bg-gray-200" />
-        <Box className="relative z-10 mx-4 -mt-9 flex-none rounded-[28px] bg-white p-4 shadow-[0_16px_40px_rgba(20,20,20,0.12)]">
+        <Box className="relative z-10 mx-4 -mt-9 flex-none rounded-[10px] bg-white p-4 shadow-[0_16px_40px_rgba(20,20,20,0.12)]">
           <Box className="h-4 w-20 animate-pulse rounded bg-gray-200" />
           <Box className="mt-3 h-6 w-2/3 animate-pulse rounded bg-gray-200" />
         </Box>
@@ -387,7 +388,7 @@ function ProductDetailPage() {
         <button
           type="button"
           onClick={() => navigate(-1)}
-          className="rounded-full border-0 bg-[#1a1a1a] px-5 py-2.5 text-sm font-semibold text-white active:scale-95"
+          className="rounded-full border-0 btn-liquid px-5 py-2.5 text-sm font-medium text-white active:scale-95"
         >
           Quay lại
         </button>
@@ -404,7 +405,7 @@ function ProductDetailPage() {
         <button
           type="button"
           onClick={() => navigate(-1)}
-          className="rounded-full border-0 bg-[#1a1a1a] px-5 py-2.5 text-sm font-semibold text-white active:scale-95"
+          className="rounded-full border-0 btn-liquid px-5 py-2.5 text-sm font-medium text-white active:scale-95"
         >
           Quay lại
         </button>
@@ -414,6 +415,7 @@ function ProductDetailPage() {
 
   const isFavorite = favoriteIds.includes(product.id);
   const customizable = isCustomizableCategory(product.category);
+  const hasToppings = supportsToppings(product.category);
 
   const handleToggleFavorite = () => {
     setFavoriteIds((prev) =>
@@ -436,7 +438,7 @@ function ProductDetailPage() {
         size: selectedSize,
         sugar: selectedSugar,
         ice: selectedIce,
-        toppings: selectedToppings,
+        toppings: hasToppings ? selectedToppings : [],
       }
     : undefined;
   const surcharge = computeOptionsSurcharge(options);
@@ -522,7 +524,7 @@ function ProductDetailPage() {
       }}
     >
       {botCursor.tapping && (
-        <span className="absolute -left-4 -top-4 h-8 w-8 animate-ping rounded-full bg-[#a78bfa] opacity-60" />
+        <span className="absolute -left-4 -top-4 h-8 w-8 animate-ping rounded-full bg-[#006AF5] opacity-60" />
       )}
       <svg
         viewBox="0 0 24 24"
@@ -606,7 +608,7 @@ function ProductDetailPage() {
           phản chiếu của kính thật.
       ========================== */}
       <Box
-        className="relative z-10 mx-4 -mt-9 flex-none rounded-[28px] border border-white/70 bg-white/75 p-4 shadow-[0_16px_40px_rgba(20,20,20,0.18)] backdrop-blur-2xl transition-all duration-500 ease-out"
+        className="relative z-10 mx-4 -mt-9 flex-none rounded-[10px] border border-white/70 bg-white/75 p-4 shadow-[0_16px_40px_rgba(20,20,20,0.18)] backdrop-blur-2xl transition-all duration-500 ease-out"
         style={{
           boxShadow:
             "inset 0 1px 0 rgba(255,255,255,0.9), 0 16px 40px rgba(20,20,20,0.18)",
@@ -707,7 +709,7 @@ function ProductDetailPage() {
               aria-label="Tăng số lượng"
               data-bot-opt="quantity-plus"
               onClick={() => setQuantity((q) => Math.min(20, q + 1))}
-              className="flex h-7 w-7 items-center justify-center rounded-full border-0 bg-[#1a1a1a] p-0 text-white transition-transform active:scale-90"
+              className="flex h-7 w-7 items-center justify-center rounded-full border-0 btn-liquid p-0 text-white transition-transform active:scale-90"
             >
               <Text className="font-bold leading-none">+</Text>
             </button>
@@ -736,7 +738,7 @@ function ProductDetailPage() {
                   onClick={() => setSelectedSize(opt.value)}
                   className={`flex-1 rounded-xl border-[1.5px] py-2 text-sm font-semibold transition-colors ${
                     selectedSize === opt.value
-                      ? "border-[#a78bfa] bg-white text-[#2f2f2f]"
+                      ? "border-[#006AF5] bg-white text-[#2f2f2f]"
                       : "border-gray-200 bg-white text-[#2f2f2f]"
                   }`}
                 >
@@ -766,7 +768,7 @@ function ProductDetailPage() {
                   onClick={() => setSelectedSugar(opt.value)}
                   className={`flex-none rounded-full border-[1.5px] px-4 py-1.5 text-sm font-semibold transition-colors ${
                     selectedSugar === opt.value
-                      ? "border-[#a78bfa] bg-white text-[#2f2f2f]"
+                      ? "border-[#006AF5] bg-white text-[#2f2f2f]"
                       : "border-gray-200 bg-white text-[#2f2f2f]"
                   }`}
                 >
@@ -788,7 +790,7 @@ function ProductDetailPage() {
                   onClick={() => setSelectedIce(opt.value)}
                   className={`flex-none rounded-full border-[1.5px] px-4 py-1.5 text-sm font-semibold transition-colors ${
                     selectedIce === opt.value
-                      ? "border-[#a78bfa] bg-white text-[#2f2f2f]"
+                      ? "border-[#006AF5] bg-white text-[#2f2f2f]"
                       : "border-gray-200 bg-white text-[#2f2f2f]"
                   }`}
                 >
@@ -797,6 +799,8 @@ function ProductDetailPage() {
               ))}
             </Box>
 
+            {hasToppings && (
+              <>
             <Text className="mt-4 font-semibold text-[#2f2f2f]">Thêm topping</Text>
             <Box className="mt-2 flex flex-col gap-2">
               {TOPPING_OPTIONS.map((opt) => {
@@ -809,14 +813,14 @@ function ProductDetailPage() {
                     onClick={() => toggleTopping(opt.value)}
                     className={`flex items-center justify-between gap-3 rounded-xl border-[1.5px] px-3.5 py-2.5 transition-colors ${
                       checked
-                        ? "border-[#a78bfa] bg-white"
+                        ? "border-[#006AF5] bg-white"
                         : "border-gray-200 bg-white"
                     }`}
                   >
                     <Box className="flex items-center gap-2.5">
                       <Box
                         className={`flex h-5 w-5 flex-none items-center justify-center rounded-md border-2 ${
-                          checked ? "border-[#a78bfa] bg-[#a78bfa]" : "border-gray-300"
+                          checked ? "border-[#006AF5] btn-liquid" : "border-gray-300"
                         }`}
                       >
                         {checked && (
@@ -834,6 +838,8 @@ function ProductDetailPage() {
                 );
               })}
             </Box>
+              </>
+            )}
           </Box>
         )}
 
@@ -988,7 +994,7 @@ function ProductDetailPage() {
             type="button"
             data-bot-opt="add-to-cart"
             onClick={handleAddToCart}
-            className="relative flex flex-none items-center justify-center gap-2 overflow-hidden rounded-full border-0 bg-[#1a1a1a] px-6 py-3 text-sm font-semibold text-white transition-transform active:scale-95"
+            className="relative flex flex-none items-center justify-center gap-2 overflow-hidden rounded-full border-0 btn-liquid px-6 py-3 text-sm font-medium text-white transition-transform active:scale-95"
           >
             <span
               className="flex items-center gap-2 transition-all duration-300"
@@ -1051,7 +1057,7 @@ function ProductDetailPage() {
                 value={reviewComment}
                 onChange={(e) => setReviewComment(e.target.value)}
                 rows={3}
-                className="mt-4 w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
+                className="mt-4 w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#006AF5]"
               />
 
               {reviewError && (
@@ -1064,7 +1070,7 @@ function ProductDetailPage() {
                 type="button"
                 onClick={handleSubmitReview}
                 disabled={submittingReview}
-                className="mt-4 w-full rounded-full border-0 bg-[#1a1a1a] py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98] disabled:opacity-80"
+                className="mt-4 w-full rounded-full border-0 btn-liquid py-3 text-sm font-medium text-white transition-transform active:scale-[0.98] disabled:opacity-80"
               >
                 {submittingReview ? "Đang gửi..." : "Gửi đánh giá"}
               </button>

@@ -14,6 +14,7 @@ import { createZaloPayOrder, queryZaloPayOrder } from "@/lib/zalopay";
 import { signCreateOrder } from "@/lib/zmp-payment";
 import {
   computeOptionsSurcharge,
+  supportsToppings,
   describeOptions,
   ProductOptions,
 } from "@/data/customization-options";
@@ -72,14 +73,19 @@ function resolveOrderItems(
     const product = products.find((item) => item.id === line.id);
     if (!product || !line.quantity || line.quantity < 1) continue;
 
-    const unitPrice = parsePrice(product.price) + computeOptionsSurcharge(line.options);
+    // Topping chỉ có ở trà sữa — bỏ topping client gửi lên cho món khác.
+    const options =
+      line.options && !supportsToppings(product.category)
+        ? { ...line.options, toppings: [] }
+        : line.options;
+    const unitPrice = parsePrice(product.price) + computeOptionsSurcharge(options);
 
     orderItems.push({
       id: product.id,
       title: product.title,
       price: `${unitPrice.toLocaleString("vi-VN")}đ`,
       quantity: line.quantity,
-      optionsLabel: describeOptions(line.options),
+      optionsLabel: describeOptions(options),
     });
   }
 

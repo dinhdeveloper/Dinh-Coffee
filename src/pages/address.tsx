@@ -212,7 +212,7 @@ function AddressPage() {
             type="button"
             onClick={handleLogin}
             disabled={isLoggingIn}
-            className="mt-2 rounded-full border-0 bg-[#1a1a1a] px-6 py-3 text-sm font-semibold text-white active:scale-95 disabled:opacity-80"
+            className="mt-2 rounded-full border-0 btn-liquid px-6 py-3 text-sm font-medium text-white active:scale-95 disabled:opacity-80"
           >
             {isLoggingIn ? "Đang đăng nhập..." : "Đăng nhập với Zalo"}
           </button>
@@ -245,7 +245,7 @@ function AddressPage() {
                   onClick={() => handleSelect(address.id)}
                   className={`cursor-pointer rounded-2xl border p-4 shadow-[0_8px_24px_rgba(0,0,0,0.06)] transition-colors ${
                     address.isDefault
-                      ? "border-[#1a1a1a] bg-white"
+                      ? "border-[#006AF5] bg-white"
                       : "border-transparent bg-white/70 backdrop-blur-xl"
                   }`}
                 >
@@ -253,7 +253,7 @@ function AddressPage() {
                     <Box
                       className={`mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full border-2 ${
                         address.isDefault
-                          ? "border-[#1a1a1a] bg-[#1a1a1a]"
+                          ? "border-[#006AF5] btn-liquid"
                           : "border-gray-300"
                       }`}
                     >
@@ -322,7 +322,7 @@ function AddressPage() {
           <button
             type="button"
             onClick={handleOpenAdd}
-            className="mt-5 flex w-full items-center justify-center gap-2 rounded-full border-0 bg-[#1a1a1a] py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98]"
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded-full border-0 btn-liquid py-3 text-sm font-medium text-white transition-transform active:scale-[0.98]"
           >
             <Icon icon="zi-plus" size={16} />
             Thêm địa chỉ mới
@@ -353,7 +353,7 @@ function AddressPage() {
                     onChange={(e) =>
                       setForm({ ...currentForm, receiver: e.target.value })
                     }
-                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#006AF5]"
                   />
                   <input
                     type="tel"
@@ -362,7 +362,7 @@ function AddressPage() {
                     onChange={(e) =>
                       setForm({ ...currentForm, phone: e.target.value })
                     }
-                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#006AF5]"
                   />
                   <input
                     type="text"
@@ -371,7 +371,7 @@ function AddressPage() {
                     onChange={(e) =>
                       setForm({ ...currentForm, detail: e.target.value })
                     }
-                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#006AF5]"
                   />
                   <input
                     type="text"
@@ -380,7 +380,7 @@ function AddressPage() {
                     onChange={(e) =>
                       setForm({ ...currentForm, note: e.target.value })
                     }
-                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#1a1a1a]"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-[#1a1a1a] outline-none focus:border-[#006AF5]"
                   />
                 </Box>
 
@@ -394,7 +394,7 @@ function AddressPage() {
                   type="button"
                   onClick={handleSaveForm}
                   disabled={saving}
-                  className="mt-4 w-full rounded-full border-0 bg-[#1a1a1a] py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98] disabled:opacity-80"
+                  className="mt-4 w-full rounded-full border-0 btn-liquid py-3 text-sm font-medium text-white transition-transform active:scale-[0.98] disabled:opacity-80"
                 >
                   {saving ? "Đang lưu..." : "Lưu địa chỉ"}
                 </button>

@@ -14,6 +14,8 @@ import {
   sendAssistantMessage,
 } from "@/services/assistant";
 import { ApiError } from "@/services/api";
+import { fetchOrderStatus, OrderStage } from "@/services/orders";
+import { ORDER_PAID_EVENT } from "@/services/order-history";
 import {
   Recorder,
   speak,
@@ -40,6 +42,15 @@ const QUICK_PICKS = [
   { label: "🍵 Matcha", text: "Mình muốn uống matcha" },
   { label: "🍰 Bánh ngọt", text: "Mình muốn ăn bánh ngọt" },
 ];
+
+// Lời bot nói ra mỗi khi đơn chuyển sang một bước mới của hành trình.
+const STAGE_ANNOUNCEMENTS: Record<OrderStage, string> = {
+  confirmed: "Quán đã nhận đơn của bạn rồi nhé! 🎉",
+  preparing: "Quán đang làm món cho bạn, chờ một chút nha! ☕",
+  delivering: "Đơn của bạn đang được giao, sắp tới nơi rồi! 🛵",
+  completed: "Đơn hàng đã hoàn tất, chúc bạn ngon miệng! 😋",
+};
+const ORDER_POLL_MS = 10_000;
 
 type Position = { x: number; y: number };
 
@@ -88,11 +99,11 @@ function BotFace() {
         y1="14"
         x2="24"
         y2="8"
-        stroke="#a78bfa"
+        stroke="#006AF5"
         strokeWidth="2"
         strokeLinecap="round"
       />
-      <circle cx="24" cy="7" r="2.6" fill="#a78bfa" />
+      <circle cx="24" cy="7" r="2.6" fill="#006AF5" />
       <rect
         x="9"
         y="14"
@@ -100,14 +111,14 @@ function BotFace() {
         height="24"
         rx="10"
         fill="#fff"
-        stroke="#a78bfa"
+        stroke="#006AF5"
         strokeWidth="2"
       />
-      <circle cx="18.5" cy="25" r="2.7" fill="#5b3fb8" />
-      <circle cx="29.5" cy="25" r="2.7" fill="#5b3fb8" />
+      <circle cx="18.5" cy="25" r="2.7" fill="#0050c0" />
+      <circle cx="29.5" cy="25" r="2.7" fill="#0050c0" />
       <path
         d="M19 31.5q5 4 10 0"
-        stroke="#5b3fb8"
+        stroke="#0050c0"
         strokeWidth="2"
         fill="none"
         strokeLinecap="round"
@@ -213,6 +224,57 @@ function AssistantBot() {
     [],
   );
 
+  // Theo dõi hành trình các đơn vừa thanh toán: bước nào mới thì bot nói lên
+  // (đọc to + hiện bong bóng + thêm vào khung chat). Không gọi AI nên không
+  // tốn hạn mức miễn phí.
+  const trackedOrdersRef = useRef(new Map<string, OrderStage | undefined>());
+
+  const announce = useCallback((text: string) => {
+    setMessages((prev) => [...prev, { role: "assistant", content: text }]);
+    setBubble(text);
+    if (voiceOnRef.current) speak(text);
+  }, []);
+
+  useEffect(() => {
+    const tracked = trackedOrdersRef.current;
+    let stopped = false;
+
+    const poll = async () => {
+      for (const [orderId, lastStage] of Array.from(tracked)) {
+        try {
+          const order = await fetchOrderStatus(orderId);
+          if (stopped || order.status !== "paid" || !order.stage) continue;
+          if (order.stage === lastStage) continue;
+
+          tracked.set(orderId, order.stage);
+          announce(STAGE_ANNOUNCEMENTS[order.stage]);
+          if (order.stage === "completed") tracked.delete(orderId);
+        } catch {
+          // Mạng chập chờn: thử lại ở lượt poll sau.
+        }
+      }
+    };
+
+    const handlePaid = (event: Event) => {
+      const orderId = (event as CustomEvent<string>).detail;
+      if (!orderId || tracked.has(orderId)) return;
+      tracked.set(orderId, undefined);
+      // Hỏi ngay để báo bước đầu tiên, không phải đợi hết chu kỳ poll.
+      void poll();
+    };
+
+    window.addEventListener(ORDER_PAID_EVENT, handlePaid);
+    const timer = setInterval(() => {
+      if (tracked.size > 0) void poll();
+    }, ORDER_POLL_MS);
+
+    return () => {
+      stopped = true;
+      window.removeEventListener(ORDER_PAID_EVENT, handlePaid);
+      clearInterval(timer);
+    };
+  }, [announce]);
+
   useEffect(() => {
     if (!bubble || running) return;
     const timer = setTimeout(() => setBubble(null), 7000);
@@ -304,11 +366,16 @@ function AssistantBot() {
   // chi tiết trực tiếp).
   const browseToProduct = async (productId: string) => {
     navigate("/suggestions");
+    // Chờ hiệu ứng chuyển trang xong rồi con trỏ mới xuất hiện.
+    await wait(1400);
+    if (cancelRef.current) return false;
+
     setCursor({
       x: window.innerWidth / 2,
-      y: window.innerHeight * 0.55,
+      y: window.innerHeight * 0.75,
       tapping: false,
     });
+    await wait(900);
 
     const find = () =>
       document.querySelector<HTMLElement>(`[data-bot-product="${productId}"]`);
@@ -324,9 +391,9 @@ function AssistantBot() {
       return false;
     }
 
-    // Cuộn dần tới món, mỗi lượt đo lại vị trí vì danh sách đang hiện dần.
+    // Cuộn tới món cho người dùng nhìn thấy, rồi mới di con trỏ tới.
     card.scrollIntoView({ behavior: "smooth", block: "center" });
-    await wait(1100);
+    await wait(1800);
     if (cancelRef.current) {
       setCursor(null);
       return false;
@@ -338,9 +405,9 @@ function AssistantBot() {
       y: rect.top + rect.height / 2,
       tapping: false,
     });
-    await wait(900);
+    await wait(1600);
     setCursor((prev) => (prev ? { ...prev, tapping: true } : prev));
-    await wait(450);
+    await wait(800);
     setCursor(null);
     return true;
   };
@@ -530,11 +597,11 @@ function AssistantBot() {
       className="pointer-events-none fixed left-0 top-0 z-[2000]"
       style={{
         transform: `translate(${cursor.x}px, ${cursor.y}px)`,
-        transition: "transform 650ms cubic-bezier(0.22, 1, 0.36, 1)",
+        transition: "transform 1100ms cubic-bezier(0.22, 1, 0.36, 1)",
       }}
     >
       {cursor.tapping && (
-        <span className="absolute -left-4 -top-4 h-8 w-8 animate-ping rounded-full bg-[#a78bfa] opacity-60" />
+        <span className="absolute -left-4 -top-4 h-8 w-8 animate-ping rounded-full bg-[#006AF5] opacity-60" />
       )}
       <svg
         viewBox="0 0 24 24"
@@ -576,7 +643,7 @@ function AssistantBot() {
         >
           <div className="flex flex-none items-center justify-between px-4 py-3">
             <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f3eeff]">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e8f1ff]">
                 <BotFace />
               </span>
               <div>
@@ -617,7 +684,7 @@ function AssistantBot() {
                 key={index}
                 className={`max-w-[82%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm leading-5 ${
                   message.role === "user"
-                    ? "self-end bg-[#a78bfa] text-white"
+                    ? "self-end btn-liquid text-white"
                     : "self-start border border-gray-100 bg-white text-[#2f2f2f]"
                 }`}
               >
@@ -642,7 +709,7 @@ function AssistantBot() {
                     key={pick.label}
                     type="button"
                     onClick={() => void send(pick.text)}
-                    className="rounded-full border border-[#a78bfa] bg-white px-3 py-1.5 text-sm font-medium text-[#2f2f2f] active:scale-95"
+                    className="rounded-full border border-[#006AF5] bg-white px-3 py-1.5 text-sm font-medium text-[#2f2f2f] active:scale-95"
                   >
                     {pick.label}
                   </button>
@@ -663,7 +730,7 @@ function AssistantBot() {
               className={`flex h-10 w-10 flex-none items-center justify-center rounded-full border-0 p-0 disabled:opacity-40 ${
                 recording
                   ? "animate-pulse bg-red-500 text-white"
-                  : "bg-[#f3eeff] text-[#5b3fb8]"
+                  : "bg-[#e8f1ff] text-[#0050c0]"
               }`}
             >
               <svg
@@ -691,13 +758,13 @@ function AssistantBot() {
                     : "Nhắn hoặc bấm mic để nói…"
               }
               disabled={sending || running}
-              className="min-w-0 flex-1 rounded-full border border-gray-200 bg-white px-4 py-2.5 text-base outline-none focus:border-[#a78bfa]"
+              className="min-w-0 flex-1 rounded-full border border-gray-200 bg-white px-4 py-2.5 text-base outline-none focus:border-[#006AF5]"
             />
             <button
               type="submit"
               aria-label="Gửi"
               disabled={!input.trim() || sending || running}
-              className="flex h-10 w-10 flex-none items-center justify-center rounded-full border-0 bg-[#a78bfa] p-0 text-white disabled:opacity-40"
+              className="flex h-10 w-10 flex-none items-center justify-center rounded-full border-0 btn-liquid p-0 text-white disabled:opacity-40"
             >
               <svg
                 viewBox="0 0 24 24"

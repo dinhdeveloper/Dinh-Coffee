@@ -3,7 +3,7 @@ import { events, EventName, openWebview, scanQRCode } from "zmp-sdk";
 import { Box, Icon, Page, Text, useNavigate } from "zmp-ui";
 import { ApiError } from "@/services/api";
 import { checkoutInStoreOrder, fetchOrderStatus } from "@/services/orders";
-import { addOrderToHistory } from "@/services/order-history";
+import { addOrderToHistory, announceOrderPaid } from "@/services/order-history";
 import { getStoredZaloUser } from "@/services/zalo-auth";
 
 type Phase =
@@ -174,6 +174,7 @@ function ScanPayPage() {
       .then((order) => {
         if (order.status === "paid") {
           addOrderToHistory(orderId);
+          announceOrderPaid(orderId);
           setPhase("success");
           setTimeout(() => navigate(`/order/${orderId}`), 1600);
           return;
@@ -277,14 +278,14 @@ function ScanPayPage() {
         <Box className="mt-8 flex flex-1 flex-col items-center justify-center gap-5 pb-16 text-center">
           <Box className="relative flex h-56 w-56 items-center justify-center">
             <Box className="absolute inset-0 rounded-3xl border-2 border-dashed border-gray-300" />
-            <Box className="absolute -left-1 -top-1 h-8 w-8 rounded-tl-2xl border-l-4 border-t-4 border-[#1a1a1a]" />
-            <Box className="absolute -right-1 -top-1 h-8 w-8 rounded-tr-2xl border-r-4 border-t-4 border-[#1a1a1a]" />
-            <Box className="absolute -bottom-1 -left-1 h-8 w-8 rounded-bl-2xl border-b-4 border-l-4 border-[#1a1a1a]" />
-            <Box className="absolute -bottom-1 -right-1 h-8 w-8 rounded-br-2xl border-b-4 border-r-4 border-[#1a1a1a]" />
+            <Box className="absolute -left-1 -top-1 h-8 w-8 rounded-tl-2xl border-l-4 border-t-4 border-[#006AF5]" />
+            <Box className="absolute -right-1 -top-1 h-8 w-8 rounded-tr-2xl border-r-4 border-t-4 border-[#006AF5]" />
+            <Box className="absolute -bottom-1 -left-1 h-8 w-8 rounded-bl-2xl border-b-4 border-l-4 border-[#006AF5]" />
+            <Box className="absolute -bottom-1 -right-1 h-8 w-8 rounded-br-2xl border-b-4 border-r-4 border-[#006AF5]" />
             <Icon icon="zi-qrline" size={64} className="text-gray-300" />
           </Box>
           <Box className="flex items-center gap-2">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-t-[#1a1a1a]" />
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-t-[#006AF5]" />
             <Text className="font-medium text-gray-600">
               Đang mở camera quét mã...
             </Text>
@@ -309,7 +310,7 @@ function ScanPayPage() {
           <button
             type="button"
             onClick={startScan}
-            className="mt-2 rounded-full border-0 bg-[#1a1a1a] px-6 py-3 text-sm font-semibold text-white active:scale-95"
+            className="mt-2 rounded-full border-0 btn-liquid px-6 py-3 text-sm font-medium text-white active:scale-95"
           >
             Mở camera thanh toán
           </button>
@@ -334,7 +335,7 @@ function ScanPayPage() {
           <button
             type="button"
             onClick={startScan}
-            className="mt-2 rounded-full border-0 bg-[#1a1a1a] px-6 py-3 text-sm font-semibold text-white active:scale-95"
+            className="mt-2 rounded-full border-0 btn-liquid px-6 py-3 text-sm font-medium text-white active:scale-95"
           >
             Quét lại
           </button>
@@ -382,7 +383,7 @@ function ScanPayPage() {
                   className={`flex items-center gap-3 rounded-2xl border p-3 text-left transition-all duration-150 ${
                     method.active
                       ? isSelected
-                        ? "border-[#1a1a1a] bg-white shadow-[0_8px_20px_rgba(0,0,0,0.08)]"
+                        ? "border-[#006AF5] bg-white shadow-[0_8px_20px_rgba(0,0,0,0.08)]"
                         : "border-transparent bg-white shadow-[0_4px_14px_rgba(0,0,0,0.05)] active:scale-[0.98]"
                       : "border-transparent bg-white/60 opacity-60"
                   }`}
@@ -406,7 +407,7 @@ function ScanPayPage() {
                     <Box
                       className={`flex h-5 w-5 flex-none items-center justify-center rounded-full border-2 ${
                         isSelected
-                          ? "border-[#1a1a1a] bg-[#1a1a1a]"
+                          ? "border-[#006AF5] btn-liquid"
                           : "border-gray-300"
                       }`}
                     >
@@ -437,7 +438,7 @@ function ScanPayPage() {
             type="button"
             onClick={handleConfirmPay}
             disabled={phase === "creating"}
-            className="relative mt-5 flex h-12 w-full items-center justify-center overflow-hidden rounded-full border-0 bg-[#1a1a1a] text-sm font-semibold text-white transition-transform active:scale-[0.98] disabled:opacity-80"
+            className="relative mt-5 flex h-12 w-full items-center justify-center overflow-hidden rounded-full border-0 btn-liquid text-sm font-medium text-white transition-transform active:scale-[0.98] disabled:opacity-80"
           >
             <span
               className="flex items-center gap-2 transition-all duration-300"
@@ -469,7 +470,7 @@ function ScanPayPage() {
       {phase === "waiting" && (
         <Box className="mt-8 flex flex-1 flex-col items-center justify-center gap-3 pb-16 text-center">
           <Box className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-50">
-            <span className="h-7 w-7 animate-spin rounded-full border-2 border-gray-200 border-t-[#1a1a1a]" />
+            <span className="h-7 w-7 animate-spin rounded-full border-2 border-gray-200 border-t-[#006AF5]" />
           </Box>
           <Text.Title size="normal" className="font-bold text-[#1a1a1a]">
             Đang chờ xác nhận thanh toán
@@ -511,7 +512,7 @@ function ScanPayPage() {
           <button
             type="button"
             onClick={handleConfirmPay}
-            className="mt-2 rounded-full border-0 bg-[#1a1a1a] px-6 py-3 text-sm font-semibold text-white active:scale-95"
+            className="mt-2 rounded-full border-0 btn-liquid px-6 py-3 text-sm font-medium text-white active:scale-95"
           >
             Thử lại
           </button>

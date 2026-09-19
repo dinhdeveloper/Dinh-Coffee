@@ -286,7 +286,7 @@ function ProfilePage() {
             type="button"
             onClick={handleLogin}
             disabled={isLoading}
-            className="relative mt-4 flex w-full items-center justify-center overflow-hidden rounded-full border-0 bg-[#1a1a1a] py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98] disabled:opacity-80"
+            className="relative mt-4 flex w-full items-center justify-center overflow-hidden rounded-full border-0 btn-liquid py-3 text-sm font-medium text-white transition-transform active:scale-[0.98] disabled:opacity-80"
           >
             <span
               className="flex items-center gap-2 transition-all duration-300"

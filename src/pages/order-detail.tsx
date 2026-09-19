@@ -170,7 +170,7 @@ function OrderDetailPage() {
           <button
             type="button"
             onClick={() => navigate("/home")}
-            className="mt-2 rounded-full border-0 bg-[#1a1a1a] px-5 py-2.5 text-sm font-semibold text-white active:scale-95"
+            className="mt-2 rounded-full border-0 btn-liquid px-5 py-2.5 text-sm font-medium text-white active:scale-95"
           >
             Về trang chủ
           </button>
@@ -229,7 +229,7 @@ function OrderDetailPage() {
                         <Box
                           className={`flex h-8 w-8 items-center justify-center rounded-full ${
                             isDone || isCurrent
-                              ? "bg-[#1a1a1a] text-white"
+                              ? "btn-liquid text-white"
                               : "bg-gray-100 text-gray-300"
                           }`}
                         >
@@ -238,7 +238,7 @@ function OrderDetailPage() {
                         {!isLast && (
                           <Box
                             className={`my-0.5 h-8 w-0.5 ${
-                              isDone ? "bg-[#1a1a1a]" : "bg-gray-100"
+                              isDone ? "btn-liquid" : "bg-gray-100"
                             }`}
                           />
                         )}

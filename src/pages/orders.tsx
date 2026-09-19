@@ -144,7 +144,7 @@ function OrdersPage() {
             type="button"
             onClick={handleLogin}
             disabled={isLoggingIn}
-            className="mt-2 rounded-full border-0 bg-[#1a1a1a] px-5 py-2.5 text-sm font-semibold text-white active:scale-95 disabled:opacity-80"
+            className="mt-2 rounded-full border-0 btn-liquid px-5 py-2.5 text-sm font-medium text-white active:scale-95 disabled:opacity-80"
           >
             {isLoggingIn ? "Đang đăng nhập..." : "Đăng nhập với Zalo"}
           </button>
@@ -169,7 +169,7 @@ function OrdersPage() {
           <button
             type="button"
             onClick={() => navigate("/home")}
-            className="mt-2 rounded-full border-0 bg-[#1a1a1a] px-5 py-2.5 text-sm font-semibold text-white active:scale-95"
+            className="mt-2 rounded-full border-0 btn-liquid px-5 py-2.5 text-sm font-medium text-white active:scale-95"
           >
             Khám phá món ngon
           </button>

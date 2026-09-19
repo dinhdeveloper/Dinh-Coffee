@@ -12,6 +12,13 @@ export function getOrderHistory(): string[] {
   }
 }
 
+// Bot trợ lý lắng nghe sự kiện này để đọc to tiến độ của các đơn vừa thanh toán.
+export const ORDER_PAID_EVENT = "boomberry:order-paid";
+
+export function announceOrderPaid(orderId: string) {
+  window.dispatchEvent(new CustomEvent(ORDER_PAID_EVENT, { detail: orderId }));
+}
+
 export function addOrderToHistory(orderId: string) {
   const existing = getOrderHistory().filter((id) => id !== orderId);
   const next = [orderId, ...existing].slice(0, MAX_HISTORY);

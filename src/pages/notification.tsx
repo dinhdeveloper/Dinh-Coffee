@@ -394,7 +394,7 @@ function NotificationPage() {
                 }
                 closeDetail();
               }}
-              className="mt-5 w-full rounded-full border-0 bg-[#1a1a1a] py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98]"
+              className="mt-5 w-full rounded-full border-0 btn-liquid py-3 text-sm font-medium text-white transition-transform active:scale-[0.98]"
             >
               {typeMeta[activeNotification.type].cta}
             </button>

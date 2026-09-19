@@ -6,6 +6,7 @@ import {
   ProductOptions,
   SizeOption,
   describeOptions,
+  supportsToppings,
   TOPPING_INFO,
   ToppingOption,
 } from "@/data/customization-options";
@@ -52,7 +53,7 @@ const SYSTEM_PROMPT = `Bạn là trợ lý gọi món thân thiện của quán 
 Cách làm việc:
 - Chỉ được nói về các món có trong MENU bên dưới. KHÔNG tự bịa tên món, id hay giá. Khách có thể gõ không dấu hoặc viết tắt ("cf sữa", "tra sua") — hãy tự khớp với món gần nhất trong MENU.
 - Nếu có nhiều món phù hợp, gợi ý tối đa 3 món và hỏi khách chọn món nào.
-- Đồ uống có 3 tuỳ chọn: size (S/M/L, mặc định M), mức đường và mức đá (100/70/50/30/0 %, mặc định 100) và topping (tuỳ chọn). Nếu khách chưa nói size, đường hoặc đá, hãy hỏi lại một câu gọn rồi mới thêm vào giỏ — trừ khi khách bảo "như thường"/"mặc định". Bánh ngọt không có các tuỳ chọn này.
+- Đồ uống có 3 tuỳ chọn: size (S/M/L, mặc định S), mức đường và mức đá (100/70/50/30/0 %, mặc định 100) và topping (tuỳ chọn, CHỈ món danh mục "Trà sữa" mới có topping; cà phê, matcha, trà trái cây và bánh không có, đừng mời topping cho các món đó). Nếu khách chưa nói size, đường hoặc đá, hãy hỏi lại một câu gọn rồi mới thêm vào giỏ — trừ khi khách bảo "như thường"/"mặc định". Bánh ngọt không có các tuỳ chọn này.
 - Khi đã đủ thông tin, gọi add_to_cart. App sẽ tự mở trang món và chọn từng tuỳ chọn như có người thao tác thật.
 - Khi khách muốn đổi món vừa chọn hoặc món đang có trong giỏ (đổi size, bớt/thêm đường đá, thêm/bỏ topping, đổi số lượng), gọi update_cart_item với product_id lấy từ mục "Giỏ hàng hiện tại" và CHỈ truyền những trường cần đổi. KHÔNG gọi add_to_cart lại cho việc này, nếu không giỏ sẽ có thêm một món mới. Nếu giỏ có nhiều món khả dĩ, ưu tiên món khách vừa nhắc tới/vừa thêm gần nhất; không chắc thì hỏi lại.
 - Sau khi thêm món, hỏi khách có muốn thêm món khác không. Khi khách muốn thanh toán hoặc xem giỏ, gọi go_to_cart.
@@ -115,7 +116,9 @@ const MENU_TEXT = products
       `- ${product.id} | ${product.title} | ${product.price} | ${product.category}${
         NON_CUSTOMIZABLE_CATEGORIES.includes(product.category)
           ? " | không có size/đường/đá"
-          : ""
+          : supportsToppings(product.category)
+            ? " | có topping"
+            : ""
       }`,
   )
   .join("\n");
@@ -150,10 +153,10 @@ function runTool(name: string, input: Record<string, unknown>): ToolOutcome {
 
     const options: ProductOptions | undefined = customizable
       ? {
-          size: pickEnum(input.size, SIZES, "M"),
+          size: pickEnum(input.size, SIZES, "S"),
           sugar: pickEnum(input.sugar, LEVELS, "100"),
           ice: pickEnum(input.ice, LEVELS, "100"),
-          toppings: Array.isArray(input.toppings)
+          toppings: supportsToppings(product.category) && Array.isArray(input.toppings)
             ? Array.from(
                 new Set(
                   input.toppings.filter((item): item is ToppingOption =>
@@ -200,7 +203,7 @@ function runTool(name: string, input: Record<string, unknown>): ToolOutcome {
       if (SIZES.includes(input.size as SizeOption)) options.size = input.size as SizeOption;
       if (LEVELS.includes(input.sugar as LevelOption)) options.sugar = input.sugar as LevelOption;
       if (LEVELS.includes(input.ice as LevelOption)) options.ice = input.ice as LevelOption;
-      if (Array.isArray(input.toppings)) {
+      if (supportsToppings(product.category) && Array.isArray(input.toppings)) {
         options.toppings = Array.from(
           new Set(
             input.toppings.filter((item): item is ToppingOption =>

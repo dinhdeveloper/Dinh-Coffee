@@ -102,7 +102,7 @@ function SuggestionsPage() {
             onClick={() => setActiveCategory(null)}
             className={`flex-none rounded-full border-0 px-4 py-1.5 text-sm font-semibold shadow-[0_4px_14px_rgba(0,0,0,0.06)] transition-colors duration-150 active:scale-95 ${
               activeCategory === null
-                ? "bg-[#1a1a1a] text-white"
+                ? "btn-liquid text-white"
                 : "bg-white/70 text-[#2f2f2f] backdrop-blur-xl"
             }`}
           >
@@ -116,7 +116,7 @@ function SuggestionsPage() {
               onClick={() => setActiveCategory(category)}
               className={`flex-none rounded-full border-0 px-4 py-1.5 text-sm font-semibold shadow-[0_4px_14px_rgba(0,0,0,0.06)] transition-colors duration-150 active:scale-95 ${
                 activeCategory === category
-                  ? "bg-[#1a1a1a] text-white"
+                  ? "btn-liquid text-white"
                   : "bg-white/70 text-[#2f2f2f] backdrop-blur-xl"
               }`}
             >

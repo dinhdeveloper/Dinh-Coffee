@@ -124,7 +124,7 @@ function BranchesPage() {
                 <Box className="mt-4 flex gap-2">
                   <a
                     href={`tel:${branch.phone}`}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-full border-0 bg-[#1a1a1a] py-2.5 text-sm font-semibold text-white transition-transform active:scale-[0.98]"
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-full border-0 btn-liquid py-2.5 text-sm font-medium text-white transition-transform active:scale-[0.98]"
                   >
                     <Icon icon="zi-call" size={15} />
                     Gọi
