@@ -17,6 +17,20 @@ export const env = {
       `http://localhost:${process.env.PORT ?? 4000}/api/payments/zalopay/callback`,
     redirectUrl: process.env.ZALOPAY_REDIRECT_URL ?? "http://localhost:3000/cart",
   },
+  momo: {
+    // Mặc định là sandbox công khai trong tài liệu MoMo (developers.momo.vn).
+    // Đổi sang partnerCode/accessKey/secretKey thật (và endpoint production
+    // https://payment.momo.vn/v2/gateway/api/) trước khi lên tiền thật.
+    partnerCode: process.env.MOMO_PARTNER_CODE ?? "MOMO",
+    accessKey: process.env.MOMO_ACCESS_KEY ?? "F8BBA842ECF85",
+    secretKey: process.env.MOMO_SECRET_KEY ?? "K951B6PE1waDMi640xX08PD3vg6EkVlz",
+    endpoint:
+      process.env.MOMO_ENDPOINT ?? "https://test-payment.momo.vn/v2/gateway/api/",
+    ipnUrl:
+      process.env.MOMO_IPN_URL ??
+      `http://localhost:${process.env.PORT ?? 4000}/api/payments/momo/ipn`,
+    redirectUrl: process.env.MOMO_REDIRECT_URL ?? "http://localhost:3000/cart",
+  },
   // Private key cấp riêng cho Mini App khi bật tính năng Payment trong
   // trang quản trị Mini App (khác với key1/key2 của ZaloPay ở trên).
   // Dùng để ký "mac" cho zmp-sdk's createOrder() (Checkout SDK).

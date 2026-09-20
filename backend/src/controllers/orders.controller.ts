@@ -11,6 +11,13 @@ import {
 } from "@/data/orders.store";
 import { addPoints, spendPoints } from "@/data/users.store";
 import { createZaloPayOrder, queryZaloPayOrder } from "@/lib/zalopay";
+import {
+  MOMO_ORDER_PREFIX,
+  createMomoOrder,
+  isMomoOrderId,
+  momoResultToStatus,
+  queryMomoOrder,
+} from "@/lib/momo";
 import { signCreateOrder } from "@/lib/zmp-payment";
 import {
   computeOptionsSurcharge,
@@ -103,7 +110,10 @@ export async function checkout(req: Request, res: Response) {
     userId?: string;
     address?: { receiver: string; phone: string; detail: string; note?: string };
     pointsToRedeem?: number;
+    paymentMethod?: "zalopay" | "momo";
   };
+  const useMomo = body.paymentMethod === "momo";
+  const gatewayName = useMomo ? "MoMo" : "ZaloPay";
 
   if (!body.items || body.items.length === 0) {
     res.status(400).json({ message: "Giỏ hàng đang trống" });
@@ -124,27 +134,41 @@ export async function checkout(req: Request, res: Response) {
   );
   const amount = subtotal - discount;
 
-  const appTransId = generateAppTransId();
+  const appTransId = useMomo
+    ? `${MOMO_ORDER_PREFIX}${generateAppTransId()}`
+    : generateAppTransId();
 
   try {
-    const zpResult = await createZaloPayOrder({
-      appTransId,
-      amount,
-      description: `Thanh toan don hang BoomBerry ${appTransId}`,
-      items: orderItems.map((item) => ({
-        id: item.id,
-        title: item.title,
-        quantity: item.quantity,
-      })),
-    });
+    let orderUrl: string | undefined;
+    let gatewayError: string | undefined;
 
-    if (zpResult.return_code !== 1 || !zpResult.order_url) {
+    if (useMomo) {
+      const momoResult = await createMomoOrder({
+        orderId: appTransId,
+        amount,
+        orderInfo: `Thanh toan don hang BoomBerry ${appTransId}`,
+      });
+      orderUrl = momoResult.resultCode === 0 ? momoResult.payUrl : undefined;
+      gatewayError = momoResult.message;
+    } else {
+      const zpResult = await createZaloPayOrder({
+        appTransId,
+        amount,
+        description: `Thanh toan don hang BoomBerry ${appTransId}`,
+        items: orderItems.map((item) => ({
+          id: item.id,
+          title: item.title,
+          quantity: item.quantity,
+        })),
+      });
+      orderUrl = zpResult.return_code === 1 ? zpResult.order_url : undefined;
+      gatewayError = zpResult.sub_return_message || zpResult.return_message;
+    }
+
+    if (!orderUrl) {
       if (pointsUsed > 0 && body.userId) await addPoints(body.userId, pointsUsed);
       res.status(502).json({
-        message:
-          zpResult.sub_return_message ||
-          zpResult.return_message ||
-          "Không tạo được đơn thanh toán ZaloPay",
+        message: gatewayError || `Không tạo được đơn thanh toán ${gatewayName}`,
       });
       return;
     }
@@ -163,7 +187,7 @@ export async function checkout(req: Request, res: Response) {
     res.json({
       data: {
         orderId: order.id,
-        orderUrl: zpResult.order_url,
+        orderUrl,
         amount: order.amount,
         discount: order.discount,
         pointsUsed: order.pointsUsed,
@@ -171,7 +195,7 @@ export async function checkout(req: Request, res: Response) {
     });
   } catch (err) {
     if (pointsUsed > 0 && body.userId) await addPoints(body.userId, pointsUsed);
-    res.status(502).json({ message: "Không kết nối được tới ZaloPay" });
+    res.status(502).json({ message: `Không kết nối được tới ${gatewayName}` });
   }
 }
 
@@ -248,15 +272,26 @@ export async function getOrderStatus(req: Request, res: Response) {
   }
 
   try {
-    const zpResult = await queryZaloPayOrder(order.id);
+    if (isMomoOrderId(order.id)) {
+      const momoResult = await queryMomoOrder(order.id);
+      const status = momoResultToStatus(momoResult.resultCode);
 
-    if (zpResult.return_code === 1) {
-      await markOrderPaid(order);
-    } else if (zpResult.return_code === 2) {
-      await markOrderFailed(order);
+      if (status === "paid") {
+        await markOrderPaid(order);
+      } else if (status === "failed") {
+        await markOrderFailed(order);
+      }
+    } else {
+      const zpResult = await queryZaloPayOrder(order.id);
+
+      if (zpResult.return_code === 1) {
+        await markOrderPaid(order);
+      } else if (zpResult.return_code === 2) {
+        await markOrderFailed(order);
+      }
     }
   } catch (err) {
-    // giữ nguyên trạng thái pending nếu không gọi được ZaloPay, client sẽ tự thử lại
+    // giữ nguyên trạng thái pending nếu không gọi được cổng thanh toán, client sẽ tự thử lại
   }
 
   res.json({ data: order });

@@ -6,6 +6,7 @@ import {
   markOrderPaid,
 } from "@/data/orders.store";
 import { verifyZaloPayCallbackMac } from "@/lib/zalopay";
+import { MomoIpnBody, momoResultToStatus, verifyMomoIpnSignature } from "@/lib/momo";
 import { verifyCallbackMac, verifyOverallMac } from "@/lib/zmp-payment";
 
 export async function zaloPayCallback(req: Request, res: Response) {
@@ -93,4 +94,29 @@ export async function zmpCheckoutCallback(req: Request, res: Response) {
   }
 
   res.json({ returnCode: 1, returnMessage: "success" });
+}
+
+// IPN (webhook server-to-server) của MoMo. MoMo chỉ cần HTTP 204/200, và sẽ
+// gọi lại nhiều lần nếu không nhận được — markOrderPaid/markOrderFailed đã
+// idempotent nên gọi lặp không cộng điểm trùng.
+// https://developers.momo.vn/v3/docs/payment/api/result-handling/notification
+export async function momoIpn(req: Request, res: Response) {
+  const body = req.body as MomoIpnBody;
+
+  if (!body?.signature || !verifyMomoIpnSignature(body)) {
+    res.status(400).json({ message: "invalid signature" });
+    return;
+  }
+
+  const order = await getOrder(body.orderId);
+
+  if (order && order.amount === Number(body.amount)) {
+    if (body.resultCode === 0) {
+      await markOrderPaid(order);
+    } else if (momoResultToStatus(body.resultCode) === "failed") {
+      await markOrderFailed(order);
+    }
+  }
+
+  res.status(204).end();
 }

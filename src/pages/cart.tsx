@@ -5,7 +5,11 @@ import { events, EventName, openWebview } from "zmp-sdk";
 import { Box, Icon, Page, Text, useNavigate } from "zmp-ui";
 import { CartItem, cartItemsAtom, cartLineKey, cartTotalAtom } from "@/store/cart";
 import { ApiError } from "@/services/api";
-import { checkoutOrder, fetchOrderStatus } from "@/services/orders";
+import {
+  checkoutOrder,
+  fetchOrderStatus,
+  type PaymentMethod,
+} from "@/services/orders";
 import { addOrderToHistory, announceOrderPaid } from "@/services/order-history";
 import { fetchUser } from "@/services/users";
 import {
@@ -214,6 +218,7 @@ function CartPage() {
   const [addressError, setAddressError] = useState<string | null>(null);
   const [userPoints, setUserPoints] = useState<number | null>(null);
   const [usePoints, setUsePoints] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("zalopay");
   const pollTimer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
@@ -431,6 +436,7 @@ function CartPage() {
         getStoredZaloUser()?.id,
         address,
         pointsToRedeem,
+        paymentMethod,
       );
     } catch (err) {
       const detail = describeError(err);
@@ -447,7 +453,7 @@ function CartPage() {
     try {
       // openOutApp bị Zalo chặn quyền (code -1403) trừ khi Mini App được
       // cấp quyền riêng, nên dùng openWebview để mở trang thanh toán
-      // ZaloPay ngay trong Mini App thay vì thoát ra app ngoài.
+      // (ZaloPay/MoMo) ngay trong Mini App thay vì thoát ra app ngoài.
       await openWebview({
         url: order.orderUrl,
         config: { style: "bottomSheet" },
@@ -608,6 +614,28 @@ function CartPage() {
                 </span>
               </button>
             )}
+
+            <Box className="mb-3 flex gap-2">
+              {(
+                [
+                  { value: "zalopay", label: "ZaloPay" },
+                  { value: "momo", label: "MoMo" },
+                ] as const
+              ).map((method) => (
+                <button
+                  key={method.value}
+                  type="button"
+                  onClick={() => setPaymentMethod(method.value)}
+                  className={`flex h-10 flex-1 items-center justify-center rounded-full border text-sm font-medium transition-colors active:opacity-80 ${
+                    paymentMethod === method.value
+                      ? "border-transparent btn-liquid text-white"
+                      : "border-gray-200 bg-white text-[#2f2f2f]"
+                  }`}
+                >
+                  {method.label}
+                </button>
+              ))}
+            </Box>
 
             {checkoutError && (
               <Text size="small" className="mb-2 text-red-500">
@@ -892,7 +920,7 @@ function CartPage() {
                     Đang chờ xác nhận thanh toán
                   </Text.Title>
                   <Text size="small" className="mt-1 text-gray-500">
-                    Hoàn tất thanh toán trên ZaloPay rồi quay lại đây
+                    Hoàn tất thanh toán trên {paymentMethod === "momo" ? "MoMo" : "ZaloPay"} rồi quay lại đây
                   </Text>
 
                   <button

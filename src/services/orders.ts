@@ -8,6 +8,8 @@ export type OrderStatus = "pending" | "paid" | "failed" | "cancelled";
 // phút (xem advanceOrderStage trong backend/src/data/orders.store.ts).
 export type OrderStage = "confirmed" | "preparing" | "delivering" | "completed";
 
+export type PaymentMethod = "zalopay" | "momo";
+
 export type CheckoutItem = {
   id: string;
   quantity: number;
@@ -51,12 +53,14 @@ export function checkoutOrder(
   userId?: string,
   address?: DeliveryAddress,
   pointsToRedeem?: number,
+  paymentMethod: PaymentMethod = "zalopay",
 ) {
   return apiPost<CheckoutResponse>("/orders", {
     items,
     userId,
     address,
     pointsToRedeem,
+    paymentMethod,
   }).then((res) => res.data);
 }
 
