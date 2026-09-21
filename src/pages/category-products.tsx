@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import { Box, Icon, Page, Text, useNavigate, useParams } from "zmp-ui";
 import { fetchProducts, Product } from "@/services/products";
+import { Category, fetchCategories } from "@/services/categories";
 import ProductCard from "@/components/product-card";
 import { ProductCardSkeletonList } from "@/components/product-card-skeleton";
 
 function CategoryProductsPage() {
   const navigate = useNavigate();
-  const { name } = useParams<{ name: string }>();
-  const category = name ? decodeURIComponent(name) : "";
+  const { id } = useParams<{ id: string }>();
 
+  const [category, setCategory] = useState<Category | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -16,10 +17,24 @@ function CategoryProductsPage() {
   useEffect(() => {
     let cancelled = false;
 
+    fetchCategories()
+      .then((data) => {
+        if (!cancelled) setCategory(data.find((item) => item.id === id) ?? null);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+
     setLoading(true);
     setError(false);
 
-    fetchProducts({ category })
+    fetchProducts({ categoryId: id })
       .then((data) => {
         if (!cancelled) setProducts(data);
       })
@@ -33,7 +48,7 @@ function CategoryProductsPage() {
     return () => {
       cancelled = true;
     };
-  }, [category]);
+  }, [id]);
 
   return (
     <Page
@@ -64,7 +79,7 @@ function CategoryProductsPage() {
 
         <Box className="min-w-0 flex-1">
           <Text.Title size="normal" className="truncate font-bold">
-            {category}
+            {category?.name ?? "Danh mục"}
           </Text.Title>
           {!loading && !error && (
             <Text size="small" className="text-gray-500">

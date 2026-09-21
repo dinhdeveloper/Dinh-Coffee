@@ -1,66 +1,88 @@
-// Tuỳ chọn món (size, mức đường/đá, topping) — dùng chung cho checkout() và
-// createOrderMac() để backend tự tính lại giá, không tin giá client gửi lên.
-// Đồng thời phải khớp với src/services/customization.ts ở frontend (chỉ dùng
-// để hiển thị giá tạm thời trước khi gọi API).
+// Tính giá món theo size + tuỳ chọn RIÊNG của từng món (khác món khác size/
+// tuỳ chọn khác nhau, không dùng chung 1 bộ S/M/L/đường/đá/topping như
+// trước) — dùng cho checkout()/createOrderMac() để backend tự tính lại giá,
+// không tin giá client gửi lên. Phải khớp với src/services/customization.ts
+// ở frontend (chỉ dùng để hiển thị giá tạm thời trước khi gọi API).
+import { Product, ProductOptions, ProductSelections } from "@/types/product";
 
-export type SizeOption = "S" | "M" | "L";
-export type LevelOption = "100" | "70" | "50" | "30" | "0";
-export type ToppingOption = "tran_chau" | "thach" | "extra_shot" | "kem_cheese";
+export type { ProductOptions, ProductSelections };
 
-export type ProductOptions = {
-  size?: SizeOption;
-  sugar?: LevelOption;
-  ice?: LevelOption;
-  toppings?: ToppingOption[];
-};
-
-export const SIZE_SURCHARGE: Record<SizeOption, number> = {
-  S: 0,
-  M: 5000,
-  L: 10000,
-};
-
-export const TOPPING_INFO: Record<ToppingOption, { label: string; price: number }> = {
-  tran_chau: { label: "Trân châu đường đen", price: 5000 },
-  thach: { label: "Thạch trái cây", price: 5000 },
-  extra_shot: { label: "Thêm 1 shot espresso", price: 10000 },
-  kem_cheese: { label: "Kem phô mai", price: 10000 },
-};
-
-// Món thuộc các danh mục này (bánh, đồ ăn kèm...) không tuỳ biến size/đường/đá.
-export const NON_CUSTOMIZABLE_CATEGORIES = ["Bánh ngọt"];
-
-// Chỉ trà sữa mới có topping — phải khớp src/services/customization.ts.
-export const TOPPING_CATEGORIES = ["Trà sữa"];
-
-export function supportsToppings(category: string): boolean {
-  return TOPPING_CATEGORIES.includes(category);
-}
-
-export function computeOptionsSurcharge(options?: ProductOptions): number {
-  if (!options) return 0;
-
-  const sizeFee = options.size ? SIZE_SURCHARGE[options.size] ?? 0 : 0;
-  const toppingFee = (options.toppings ?? []).reduce(
-    (sum, key) => sum + (TOPPING_INFO[key]?.price ?? 0),
-    0,
+export function findSize(product: Product, sizeCode?: string) {
+  if (!product.sizes.length) return undefined;
+  return (
+    product.sizes.find((size) => size.code === sizeCode) ?? product.sizes[0]
   );
-
-  return sizeFee + toppingFee;
 }
 
-export function describeOptions(options?: ProductOptions): string | undefined {
+export function computeUnitPrice(product: Product, options?: ProductOptions): number {
+  const size = findSize(product, options?.sizeCode);
+  let price = size?.price ?? product.price;
+
+  for (const custom of product.customizations) {
+    const value = options?.selections?.[custom.name];
+    if (value === undefined) continue;
+
+    if (custom.type === "toggle" && value === true) {
+      price += custom.priceDelta ?? 0;
+    } else if (custom.type === "multi" && Array.isArray(value)) {
+      const validCount = value.filter((v) => custom.options?.includes(v)).length;
+      price += validCount * (custom.priceDelta ?? 0);
+    }
+    // "single": lựa chọn không có phụ phí trong dữ liệu hiện tại.
+  }
+
+  return price;
+}
+
+export function normalizeOptions(
+  product: Product,
+  raw?: { sizeCode?: string; selections?: ProductSelections },
+): ProductOptions | undefined {
+  if (!product.sizes.length && product.customizations.length === 0) return undefined;
+
+  const size = findSize(product, raw?.sizeCode);
+  const selections: ProductSelections = {};
+
+  for (const custom of product.customizations) {
+    const value = raw?.selections?.[custom.name];
+    if (value === undefined) continue;
+
+    if (custom.type === "toggle") {
+      selections[custom.name] = value === true;
+    } else if (custom.type === "multi" && Array.isArray(value)) {
+      selections[custom.name] = value.filter(
+        (v): v is string => typeof v === "string" && (custom.options?.includes(v) ?? false),
+      );
+    } else if (custom.type === "single" && typeof value === "string") {
+      if (custom.options?.includes(value)) selections[custom.name] = value;
+    }
+  }
+
+  return { sizeCode: size?.code ?? "", selections };
+}
+
+export function describeOptions(
+  product: Product,
+  options?: ProductOptions,
+): string | undefined {
   if (!options) return undefined;
 
   const parts: string[] = [];
-  if (options.size) parts.push(`Size ${options.size}`);
-  if (options.sugar) parts.push(`Đường ${options.sugar}%`);
-  if (options.ice) parts.push(`Đá ${options.ice}%`);
+  const size = findSize(product, options.sizeCode);
+  if (size) parts.push(size.label);
 
-  const toppingLabels = (options.toppings ?? [])
-    .map((key) => TOPPING_INFO[key]?.label)
-    .filter((label): label is string => Boolean(label));
-  if (toppingLabels.length > 0) parts.push(toppingLabels.join(", "));
+  for (const custom of product.customizations) {
+    const value = options.selections?.[custom.name];
+    if (value === undefined) continue;
+
+    if (custom.type === "toggle" && value === true) {
+      parts.push(custom.name);
+    } else if (custom.type === "multi" && Array.isArray(value) && value.length > 0) {
+      parts.push(`${custom.name}: ${value.join(", ")}`);
+    } else if (custom.type === "single" && typeof value === "string") {
+      parts.push(value);
+    }
+  }
 
   return parts.length > 0 ? parts.join(" · ") : undefined;
 }

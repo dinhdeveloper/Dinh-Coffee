@@ -1,7 +1,7 @@
 import { CSSProperties, useState } from "react";
 import { useAtom, useSetAtom } from "jotai";
 import { Box, Icon, Text } from "zmp-ui";
-import { Product } from "@/services/products";
+import { formatPrice, Product } from "@/services/products";
 import { cartItemsAtom } from "@/store/cart";
 import { favoriteIdsAtom } from "@/store/favorites";
 
@@ -54,7 +54,7 @@ function ProductCard({
         {
           id: product.id,
           title: product.title,
-          price: product.price,
+          price: formatPrice(product.price),
           image: product.image,
           quantity: 1,
         },
@@ -112,7 +112,7 @@ function ProductCard({
         </Text>
 
         <Text size="small" className="mt-1 font-semibold text-red-500">
-          {product.price}
+          {formatPrice(product.price)}
         </Text>
       </Box>
 

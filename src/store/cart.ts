@@ -4,10 +4,10 @@ import type { ProductOptions } from "@/services/customization";
 
 export type CartItem = {
   id: string;
-  // Id duy nhất cho từng tổ hợp tuỳ chọn (size/đường/đá/topping) của cùng 1
-  // sản phẩm — dùng để cộng dồn/xoá đúng dòng thay vì gộp nhầm các dòng có
-  // tuỳ chọn khác nhau. Item cũ lưu từ trước khi có tính năng này sẽ không
-  // có field này, nên mọi nơi thao tác theo dòng cần fallback về `id`.
+  // Id duy nhất cho từng tổ hợp tuỳ chọn (size/tuỳ chọn) của cùng 1 sản
+  // phẩm — dùng để cộng dồn/xoá đúng dòng thay vì gộp nhầm các dòng có tuỳ
+  // chọn khác nhau. Item cũ lưu từ trước khi có tính năng này sẽ không có
+  // field này, nên mọi nơi thao tác theo dòng cần fallback về `id`.
   lineId?: string;
   title: string;
   price: string;

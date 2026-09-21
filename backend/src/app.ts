@@ -4,6 +4,7 @@ import { env } from "@/config/env";
 import { errorHandler, notFoundHandler } from "@/middlewares/error-handler";
 import addressesRoutes from "@/routes/addresses.routes";
 import cafeStoryRoutes from "@/routes/cafe-story.routes";
+import categoriesRoutes from "@/routes/categories.routes";
 import notificationsRoutes from "@/routes/notifications.routes";
 import ordersRoutes from "@/routes/orders.routes";
 import paymentsRoutes from "@/routes/payments.routes";
@@ -26,6 +27,7 @@ export function createApp() {
   });
 
   app.use("/api/products", productsRoutes);
+  app.use("/api/categories", categoriesRoutes);
   app.use("/api/notifications", notificationsRoutes);
   app.use("/api/stories", storeStoriesRoutes);
   app.use("/api/assistant", assistantRoutes);

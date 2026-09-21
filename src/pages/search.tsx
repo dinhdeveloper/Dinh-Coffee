@@ -4,7 +4,7 @@ import { fetchProducts, Product } from "@/services/products";
 import ProductCard from "@/components/product-card";
 import { ProductCardSkeletonList } from "@/components/product-card-skeleton";
 
-const keywords = ["Trà sữa", "Cà phê", "Trà trái cây", "Bánh ngọt", "Matcha"];
+const keywords = ["Cà phê nóng", "Cà phê lạnh", "Trà", "Nước giải khát", "Đồ ăn"];
 
 function normalize(value: string) {
   return value

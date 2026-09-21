@@ -1,8 +1,7 @@
-// Schema tối giản, khớp 1:1 với các type hiện có trong src/types — chỉ
-// persist đúng 2 thứ từng bị mất khi Render restart server (Map trong bộ
-// nhớ): User (điểm thưởng) và Order (đơn hàng, tình trạng thanh toán).
-// Catalog (products/categories/properties) vẫn là dữ liệu tĩnh seed từ code,
-// không cần DB. Chạy đồng bộ schema này lên Postgres bằng: npx prisma db push
+// User (điểm thưởng), Order (đơn hàng, tình trạng thanh toán) và Catalog
+// (Category/Product) đều persist ở đây — catalog lấy thật từ DB, seed 1 lần
+// bằng backend/prisma/seed.ts, không hard-code trong code nữa. Chạy đồng bộ
+// schema này lên Postgres bằng: npx prisma db push
 
 datasource db {
   provider = "postgresql"
@@ -150,12 +149,15 @@ model ProductStat {
   @@map("product_stats")
 }
 
-// Danh mục món (Trà sữa, Trà trái cây, Cà phê, Matcha, Bánh ngọt...) — hiện
-// đang là chuỗi tự do trong Product.category ở src/types/product.ts, tách
-// riêng ra bảng để không bị gõ sai tên/khó đổi thứ tự hiển thị trên tab lọc.
+// Danh mục món, lấy thật từ DB (không hard-code trong code nữa) — slug là
+// khoá ổn định để tham chiếu ("hot-coffees"), name là tên tiếng Việt hiển
+// thị trên UI, nameEn giữ tên gốc để tham khảo/đối chiếu nguồn.
 model Category {
   id        String    @id @default(cuid())
-  name      String    @unique
+  slug      String    @unique
+  name      String // tên tiếng Việt hiển thị, vd "Cà phê nóng"
+  nameEn    String // tên gốc, vd "Hot Coffees"
+  imageUrl  String
   sortOrder Int       @default(0)
   createdAt DateTime  @default(now())
   products  Product[]
@@ -163,23 +165,29 @@ model Category {
   @@map("categories")
 }
 
-// Catalog món — hiện đang seed tĩnh từ backend/src/data/products.data.ts,
-// chuyển sang đây để admin có thể thêm/sửa/ẩn món mà không cần deploy lại
-// code. id giữ nguyên dạng slug ("tra-sua-tran-chau") như dữ liệu tĩnh hiện
-// tại để không phải đổi id trong giỏ hàng/đơn hàng cũ.
+// Catalog món, lấy thật từ DB — mỗi món có nhiều size với giá riêng
+// (Tall/Grande/Venti...) thay vì 1 giá cộng phụ phí size cố định, và tuỳ
+// chọn (milk, syrup, đá...) khai báo riêng theo từng món thay vì dùng chung
+// 1 bộ size/đường/đá/topping cho mọi món như trước.
 model Product {
-  id           String    @id
-  title        String
-  price        Int // lưu số nguyên (đồng) thay vì chuỗi "35.000đ" như bản tĩnh — format ở tầng hiển thị
-  image        String
-  categoryId   String?
-  category     Category? @relation(fields: [categoryId], references: [id])
-  rating       Float     @default(0)
-  reviewsCount Int       @default(0) // số lượng đánh giá hiển thị trên thẻ sản phẩm — khác Review (chi tiết từng đánh giá)
-  description  String
-  isActive     Boolean   @default(true) // false = ẩn khỏi menu mà không cần xoá (đơn hàng cũ vẫn tham chiếu được id)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id            String    @id
+  title         String // tên tiếng Việt hiển thị
+  titleEn       String? // tên gốc, để tham khảo/đối chiếu nguồn
+  price         Int // giá hiển thị mặc định (giá size đầu tiên) — dùng cho thẻ sản phẩm/tương thích ngược
+  image         String
+  categoryId    String?
+  category      Category?  @relation(fields: [categoryId], references: [id])
+  sizes         Json // ProductSize[] — [{ code, label, volumeMl, price }]
+  customizations Json      @default("[]") // ProductCustomization[] — [{ name, type: "single"|"multi"|"toggle", options?, priceDelta? }]
+  nutrition     Json? // thông tin dinh dưỡng tự do theo từng món, hiển thị ở trang chi tiết
+  allergens     String[]  @default([])
+  tags          String[]  @default([])
+  rating        Float     @default(0)
+  reviewsCount  Int       @default(0) // số lượng đánh giá hiển thị trên thẻ sản phẩm — khác Review (chi tiết từng đánh giá)
+  description   String
+  isActive      Boolean   @default(true) // false = ẩn khỏi menu mà không cần xoá (đơn hàng cũ vẫn tham chiếu được id)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([categoryId])
   @@map("products")

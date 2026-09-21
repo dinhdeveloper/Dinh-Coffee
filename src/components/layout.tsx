@@ -96,7 +96,7 @@ const Layout = () => {
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/story" element={<StoryPage />} />
               <Route path="/product/:id" element={<ProductDetailPage />} />
-              <Route path="/category/:name" element={<CategoryProductsPage />} />
+              <Route path="/category/:id" element={<CategoryProductsPage />} />
               <Route path="/cart" element={<CartPage />} />
               <Route path="/suggestions" element={<SuggestionsPage />} />
               <Route path="/orders" element={<OrdersPage />} />

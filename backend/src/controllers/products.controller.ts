@@ -1,14 +1,38 @@
 import { Request, Response } from "express";
-import { products } from "@/data/products.data";
+import { prisma } from "@/lib/prisma";
 import { getPurchaseCount, getPurchaseCounts } from "@/data/product-stats.store";
 import { getReviewSummaries, getReviewSummary } from "@/data/reviews.store";
-import { Product } from "@/types/product";
+import { Product, ProductCustomization, ProductSize } from "@/types/product";
+
+type ProductRow = Awaited<ReturnType<typeof prisma.product.findMany>>[number] & {
+  category: { name: string } | null;
+};
+
+function toProduct(row: ProductRow): Omit<Product, "purchaseCount"> {
+  return {
+    id: row.id,
+    title: row.title,
+    titleEn: row.titleEn,
+    price: row.price,
+    image: row.image,
+    categoryId: row.categoryId,
+    category: row.category?.name,
+    sizes: row.sizes as unknown as ProductSize[],
+    customizations: row.customizations as unknown as ProductCustomization[],
+    nutrition: row.nutrition as Record<string, number> | null,
+    allergens: row.allergens,
+    tags: row.tags,
+    rating: row.rating,
+    reviewsCount: row.reviewsCount,
+    description: row.description,
+    isActive: row.isActive,
+  };
+}
 
 // Gộp số liệu thật (đã bán bao nhiêu, điểm đánh giá trung bình từ Review
-// thật) vào sản phẩm tĩnh — nếu sản phẩm chưa có đơn/đánh giá thật nào thì
-// vẫn giữ nguyên rating/reviews mặc định khai báo sẵn trong products.data.ts
-// để trang không bị trống trơn lúc mới deploy.
-async function withLiveStats(product: Product) {
+// thật) vào sản phẩm lấy từ DB — nếu sản phẩm chưa có đơn/đánh giá thật nào
+// thì vẫn giữ nguyên rating/reviewsCount mặc định trong DB.
+async function withLiveStats(product: Omit<Product, "purchaseCount">): Promise<Product> {
   const [purchaseCount, summary] = await Promise.all([
     getPurchaseCount(product.id),
     getReviewSummary(product.id),
@@ -17,40 +41,45 @@ async function withLiveStats(product: Product) {
   return {
     ...product,
     purchaseCount,
-    rating: summary.count > 0 ? summary.average.toFixed(1) : product.rating,
-    reviews: summary.count > 0 ? String(summary.count) : product.reviews,
+    rating: summary.count > 0 ? summary.average : product.rating,
+    reviewsCount: summary.count > 0 ? summary.count : product.reviewsCount,
   };
 }
 
 export async function listProducts(req: Request, res: Response) {
-  const { category, q } = req.query;
+  const { category, categoryId, q } = req.query;
 
-  let result = products;
+  const rows = await prisma.product.findMany({
+    where: {
+      isActive: true,
+      ...(typeof categoryId === "string" && categoryId.trim()
+        ? { categoryId }
+        : {}),
+      ...(typeof category === "string" && category.trim()
+        ? { category: { name: category } }
+        : {}),
+      ...(typeof q === "string" && q.trim()
+        ? { title: { contains: q.trim(), mode: "insensitive" } }
+        : {}),
+    },
+    include: { category: { select: { name: true } } },
+    orderBy: { createdAt: "asc" },
+  });
 
-  if (typeof category === "string" && category.trim()) {
-    result = result.filter((product) => product.category === category);
-  }
-
-  if (typeof q === "string" && q.trim()) {
-    const keyword = q.trim().toLowerCase();
-    result = result.filter((product) =>
-      product.title.toLowerCase().includes(keyword),
-    );
-  }
-
-  const ids = result.map((product) => product.id);
+  const ids = rows.map((row) => row.id);
   const [purchaseCounts, summaries] = await Promise.all([
     getPurchaseCounts(ids),
     getReviewSummaries(ids),
   ]);
 
-  const data = result.map((product) => {
+  const data = rows.map((row) => {
+    const product = toProduct(row as ProductRow);
     const summary = summaries[product.id];
     return {
       ...product,
       purchaseCount: purchaseCounts[product.id] ?? 0,
-      rating: summary && summary.count > 0 ? summary.average.toFixed(1) : product.rating,
-      reviews: summary && summary.count > 0 ? String(summary.count) : product.reviews,
+      rating: summary && summary.count > 0 ? summary.average : product.rating,
+      reviewsCount: summary && summary.count > 0 ? summary.count : product.reviewsCount,
     };
   });
 
@@ -58,12 +87,15 @@ export async function listProducts(req: Request, res: Response) {
 }
 
 export async function getProduct(req: Request, res: Response) {
-  const product = products.find((item) => item.id === req.params.id);
+  const row = await prisma.product.findUnique({
+    where: { id: req.params.id },
+    include: { category: { select: { name: true } } },
+  });
 
-  if (!product) {
+  if (!row || !row.isActive) {
     res.status(404).json({ message: "Không tìm thấy sản phẩm" });
     return;
   }
 
-  res.json({ data: await withLiveStats(product) });
+  res.json({ data: await withLiveStats(toProduct(row as ProductRow)) });
 }

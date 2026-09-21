@@ -1,15 +1,12 @@
 import { env } from "@/config/env";
-import { products } from "@/data/products.data";
+import { listActiveProducts } from "@/data/catalog.store";
 import {
-  LevelOption,
-  NON_CUSTOMIZABLE_CATEGORIES,
   ProductOptions,
-  SizeOption,
+  ProductSelections,
   describeOptions,
-  supportsToppings,
-  TOPPING_INFO,
-  ToppingOption,
+  normalizeOptions,
 } from "@/data/customization-options";
+import { Product } from "@/types/product";
 
 export type AssistantMessage = { role: "user" | "assistant"; content: string };
 export type AssistantCartLine = {
@@ -44,24 +41,24 @@ export type AssistantAction =
 export type AssistantResult = { reply: string; actions: AssistantAction[] };
 
 const MAX_TOOL_ROUNDS = 6;
-const SIZES: SizeOption[] = ["S", "M", "L"];
-const LEVELS: LevelOption[] = ["100", "70", "50", "30", "0"];
-const TOPPINGS = Object.keys(TOPPING_INFO) as ToppingOption[];
 
-const SYSTEM_PROMPT = `Bạn là trợ lý gọi món thân thiện của quán cà phê & trà trong ứng dụng. Luôn trả lời bằng tiếng Việt, xưng "mình" và gọi khách là "bạn", giọng ngắn gọn, vui vẻ, không quá 3 câu mỗi lượt.
+const SYSTEM_PROMPT = `Bạn là trợ lý gọi món thân thiện của quán trong ứng dụng. Luôn trả lời bằng tiếng Việt, xưng "mình" và gọi khách là "bạn", giọng ngắn gọn, vui vẻ, không quá 3 câu mỗi lượt.
 
 Cách làm việc:
-- Chỉ được nói về các món có trong MENU bên dưới. KHÔNG tự bịa tên món, id hay giá. Khách có thể gõ không dấu hoặc viết tắt ("cf sữa", "tra sua") — hãy tự khớp với món gần nhất trong MENU.
+- Chỉ được nói về các món có trong MENU bên dưới. KHÔNG tự bịa tên món, id hay giá. Khách có thể gõ không dấu hoặc viết tắt — hãy tự khớp với món gần nhất trong MENU.
 - Nếu có nhiều món phù hợp, gợi ý tối đa 3 món và hỏi khách chọn món nào.
-- Đồ uống có 3 tuỳ chọn: size (S/M/L, mặc định S), mức đường và mức đá (100/70/50/30/0 %, mặc định 100) và topping (tuỳ chọn, CHỈ món danh mục "Trà sữa" mới có topping; cà phê, matcha, trà trái cây và bánh không có, đừng mời topping cho các món đó). Nếu khách chưa nói size, đường hoặc đá, hãy hỏi lại một câu gọn rồi mới thêm vào giỏ — trừ khi khách bảo "như thường"/"mặc định". Bánh ngọt không có các tuỳ chọn này.
+- Mỗi món trong MENU liệt kê sẵn "size" (mã|tên|giá) và "tuỳ chọn" (tên|loại|các lựa chọn) riêng của món đó — chỉ dùng đúng mã size và tên/lựa chọn đã liệt kê cho món đó, không suy diễn thêm. Loại "single" chỉ chọn 1 giá trị, "multi" chọn nhiều giá trị (mảng), "toggle" chỉ true/false. Món không có size/tuỳ chọn thì bỏ qua size_code/selections.
+- Nếu khách chưa nói rõ size hoặc tuỳ chọn bắt buộc phải biết để tính đúng giá, hỏi lại một câu gọn rồi mới thêm vào giỏ — trừ khi khách bảo "như thường"/"mặc định" (khi đó dùng size đầu tiên trong danh sách và bỏ qua tuỳ chọn).
+- selections là 1 chuỗi JSON object, khoá là đúng tên tuỳ chọn của món, giá trị tương ứng loại (single: chuỗi, multi: mảng chuỗi, toggle: true/false). Ví dụ: {"Milk":"Oat","Extra shot":true,"Syrup":["Vanilla"]}.
 - Khi đã đủ thông tin, gọi add_to_cart. App sẽ tự mở trang món và chọn từng tuỳ chọn như có người thao tác thật.
-- Khi khách muốn đổi món vừa chọn hoặc món đang có trong giỏ (đổi size, bớt/thêm đường đá, thêm/bỏ topping, đổi số lượng), gọi update_cart_item với product_id lấy từ mục "Giỏ hàng hiện tại" và CHỈ truyền những trường cần đổi. KHÔNG gọi add_to_cart lại cho việc này, nếu không giỏ sẽ có thêm một món mới. Nếu giỏ có nhiều món khả dĩ, ưu tiên món khách vừa nhắc tới/vừa thêm gần nhất; không chắc thì hỏi lại.
+- Khi khách muốn đổi món vừa chọn hoặc món đang có trong giỏ (đổi size, đổi tuỳ chọn, đổi số lượng), gọi update_cart_item với product_id lấy từ mục "Giỏ hàng hiện tại" và CHỈ truyền những trường cần đổi. KHÔNG gọi add_to_cart lại cho việc này, nếu không giỏ sẽ có thêm một món mới. Nếu giỏ có nhiều món khả dĩ, ưu tiên món khách vừa nhắc tới/vừa thêm gần nhất; không chắc thì hỏi lại.
 - Sau khi thêm món, hỏi khách có muốn thêm món khác không. Khi khách muốn thanh toán hoặc xem giỏ, gọi go_to_cart.
 - Bạn KHÔNG thể tự thanh toán. Luôn nói rõ khách cần bấm nút đặt hàng/thanh toán để xác nhận cuối cùng.
 - Chỉ nói chuyện về việc gọi món và menu của quán; từ chối lịch sự các chủ đề khác.`;
 
 // Khai báo công cụ theo định dạng function calling của Gemini (schema kiểu
-// OpenAPI, type viết hoa).
+// OpenAPI, type viết hoa). size_code/selections generic để khớp với mọi món
+// (mỗi món tự khai báo size/tuỳ chọn riêng trong MENU, xem SYSTEM_PROMPT).
 const FUNCTION_DECLARATIONS = [
   {
     name: "add_to_cart",
@@ -72,12 +69,10 @@ const FUNCTION_DECLARATIONS = [
       properties: {
         product_id: { type: "STRING" },
         quantity: { type: "INTEGER", description: "Số lượng, 1-10" },
-        size: { type: "STRING", enum: SIZES },
-        sugar: { type: "STRING", enum: LEVELS, description: "Mức đường (%)" },
-        ice: { type: "STRING", enum: LEVELS, description: "Mức đá (%)" },
-        toppings: {
-          type: "ARRAY",
-          items: { type: "STRING", enum: TOPPINGS },
+        size_code: { type: "STRING", description: "Mã size, lấy đúng trong MENU của món" },
+        selections: {
+          type: "STRING",
+          description: "Chuỗi JSON object các tuỳ chọn đã chọn, khớp tên/loại tuỳ chọn của món",
         },
       },
       required: ["product_id"],
@@ -92,13 +87,10 @@ const FUNCTION_DECLARATIONS = [
       properties: {
         product_id: { type: "STRING", description: "id món trong giỏ hàng" },
         quantity: { type: "INTEGER", description: "Số lượng mới, 1-10" },
-        size: { type: "STRING", enum: SIZES },
-        sugar: { type: "STRING", enum: LEVELS, description: "Mức đường (%)" },
-        ice: { type: "STRING", enum: LEVELS, description: "Mức đá (%)" },
-        toppings: {
-          type: "ARRAY",
-          items: { type: "STRING", enum: TOPPINGS },
-          description: "Danh sách topping MỚI (thay thế hoàn toàn topping cũ)",
+        size_code: { type: "STRING", description: "Mã size mới, lấy đúng trong MENU của món" },
+        selections: {
+          type: "STRING",
+          description: "Chuỗi JSON object các tuỳ chọn MỚI (thay thế hoàn toàn tuỳ chọn cũ)",
         },
       },
       required: ["product_id"],
@@ -110,23 +102,33 @@ const FUNCTION_DECLARATIONS = [
   },
 ];
 
-const MENU_TEXT = products
-  .map(
-    (product) =>
-      `- ${product.id} | ${product.title} | ${product.price} | ${product.category}${
-        NON_CUSTOMIZABLE_CATEGORIES.includes(product.category)
-          ? " | không có size/đường/đá"
-          : supportsToppings(product.category)
-            ? " | có topping"
-            : ""
-      }`,
-  )
-  .join("\n");
+function describeProductForMenu(product: Product): string {
+  const sizePart =
+    product.sizes.length > 1
+      ? ` | size: ${product.sizes
+          .map((s) => `${s.code}=${s.label} ${s.price.toLocaleString("vi-VN")}đ`)
+          .join(", ")}`
+      : "";
+  const customPart = product.customizations.length
+    ? ` | tuỳ chọn: ${product.customizations
+        .map((c) =>
+          c.type === "toggle"
+            ? `${c.name} (toggle, +${(c.priceDelta ?? 0).toLocaleString("vi-VN")}đ)`
+            : `${c.name} (${c.type}: ${c.options?.join("/")})`,
+        )
+        .join("; ")}`
+    : "";
+  return `- ${product.id} | ${product.title} | ${product.price.toLocaleString("vi-VN")}đ | ${product.category ?? ""}${sizePart}${customPart}`;
+}
 
-function pickEnum<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
-  return typeof value === "string" && (allowed as readonly string[]).includes(value)
-    ? (value as T)
-    : fallback;
+function parseSelectionsInput(value: unknown): ProductSelections | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? (parsed as ProductSelections) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 type ToolOutcome = {
@@ -137,7 +139,11 @@ type ToolOutcome = {
   isError?: boolean;
 };
 
-function runTool(name: string, input: Record<string, unknown>): ToolOutcome {
+function runTool(
+  products: Product[],
+  name: string,
+  input: Record<string, unknown>,
+): ToolOutcome {
   if (name === "add_to_cart") {
     const product = products.find((item) => item.id === input.product_id);
     if (!product) {
@@ -149,29 +155,15 @@ function runTool(name: string, input: Record<string, unknown>): ToolOutcome {
 
     const rawQty = Number(input.quantity ?? 1);
     const quantity = Math.min(10, Math.max(1, Number.isFinite(rawQty) ? Math.round(rawQty) : 1));
-    const customizable = !NON_CUSTOMIZABLE_CATEGORIES.includes(product.category);
-
-    const options: ProductOptions | undefined = customizable
-      ? {
-          size: pickEnum(input.size, SIZES, "S"),
-          sugar: pickEnum(input.sugar, LEVELS, "100"),
-          ice: pickEnum(input.ice, LEVELS, "100"),
-          toppings: supportsToppings(product.category) && Array.isArray(input.toppings)
-            ? Array.from(
-                new Set(
-                  input.toppings.filter((item): item is ToppingOption =>
-                    TOPPINGS.includes(item as ToppingOption),
-                  ),
-                ),
-              )
-            : [],
-        }
-      : undefined;
+    const options = normalizeOptions(product, {
+      sizeCode: typeof input.size_code === "string" ? input.size_code : undefined,
+      selections: parseSelectionsInput(input.selections),
+    });
 
     return {
       content: `Đã gửi lệnh thêm ${quantity} ${product.title} vào giỏ, app đang thao tác.`,
       fallbackReply: `Mình đã thêm ${quantity} ${product.title}${
-        describeOptions(options) ? ` (${describeOptions(options)})` : ""
+        describeOptions(product, options) ? ` (${describeOptions(product, options)})` : ""
       } vào giỏ rồi nhé. Bạn muốn thêm món khác không?`,
       action: {
         type: "add_to_cart",
@@ -197,26 +189,19 @@ function runTool(name: string, input: Record<string, unknown>): ToolOutcome {
         ? undefined
         : Math.min(10, Math.max(1, Math.round(Number(input.quantity)) || 1));
 
-    const customizable = !NON_CUSTOMIZABLE_CATEGORIES.includes(product.category);
-    const options: ProductOptions = {};
-    if (customizable) {
-      if (SIZES.includes(input.size as SizeOption)) options.size = input.size as SizeOption;
-      if (LEVELS.includes(input.sugar as LevelOption)) options.sugar = input.sugar as LevelOption;
-      if (LEVELS.includes(input.ice as LevelOption)) options.ice = input.ice as LevelOption;
-      if (supportsToppings(product.category) && Array.isArray(input.toppings)) {
-        options.toppings = Array.from(
-          new Set(
-            input.toppings.filter((item): item is ToppingOption =>
-              TOPPINGS.includes(item as ToppingOption),
-            ),
-          ),
-        );
-      }
-    }
+    const hasSize = typeof input.size_code === "string" && input.size_code.trim();
+    const hasSelections = parseSelectionsInput(input.selections) !== undefined;
+    const options =
+      hasSize || hasSelections
+        ? normalizeOptions(product, {
+            sizeCode: typeof input.size_code === "string" ? input.size_code : undefined,
+            selections: parseSelectionsInput(input.selections),
+          })
+        : undefined;
 
-    if (quantity === undefined && Object.keys(options).length === 0) {
+    if (quantity === undefined && !options) {
       return {
-        content: "Chưa có thay đổi hợp lệ nào (món này có thể không có size/đường/đá).",
+        content: "Chưa có thay đổi hợp lệ nào (món này có thể không có size/tuỳ chọn).",
         isError: true,
       };
     }
@@ -229,7 +214,7 @@ function runTool(name: string, input: Record<string, unknown>): ToolOutcome {
         productId: product.id,
         title: product.title,
         quantity,
-        options: Object.keys(options).length > 0 ? options : undefined,
+        options,
       },
     };
   }
@@ -325,6 +310,9 @@ export async function runAssistant(
   history: AssistantMessage[],
   cart: AssistantCartLine[],
 ): Promise<AssistantResult> {
+  const products = await listActiveProducts();
+  const menuText = products.map(describeProductForMenu).join("\n");
+
   const cartSummary =
     cart.length > 0
       ? cart
@@ -334,7 +322,7 @@ export async function runAssistant(
           )
           .join("\n")
       : "(giỏ hàng đang trống)";
-  const systemInstruction = `${SYSTEM_PROMPT}\n\nMENU (id | tên | giá | danh mục):\n${MENU_TEXT}\n\nGiỏ hàng hiện tại của khách (món cuối danh sách là món thêm gần nhất):\n${cartSummary}`;
+  const systemInstruction = `${SYSTEM_PROMPT}\n\nMENU (id | tên | giá | danh mục | size | tuỳ chọn):\n${menuText}\n\nGiỏ hàng hiện tại của khách (món cuối danh sách là món thêm gần nhất):\n${cartSummary}`;
 
   const contents: GeminiContent[] = history.map((message) => ({
     role: message.role === "user" ? "user" : "model",
@@ -359,7 +347,7 @@ export async function runAssistant(
     const fallbackReplies: string[] = [];
     const responses: GeminiPart[] = calls.map((part) => {
       const call = part.functionCall!;
-      const outcome = runTool(call.name, call.args ?? {});
+      const outcome = runTool(products, call.name, call.args ?? {});
       if (outcome.action) actions.push(outcome.action);
       if (outcome.fallbackReply) fallbackReplies.push(outcome.fallbackReply);
       errored ||= Boolean(outcome.isError);

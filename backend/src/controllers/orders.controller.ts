@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { env } from "@/config/env";
-import { products } from "@/data/products.data";
+import { getProductById } from "@/data/catalog.store";
 import {
   createOrder,
   getOrder,
@@ -20,9 +20,9 @@ import {
 } from "@/lib/momo";
 import { signCreateOrder } from "@/lib/zmp-payment";
 import {
-  computeOptionsSurcharge,
-  supportsToppings,
+  computeUnitPrice,
   describeOptions,
+  normalizeOptions,
   ProductOptions,
 } from "@/data/customization-options";
 import { OrderItem } from "@/types/order";
@@ -71,28 +71,26 @@ function generateAppTransId() {
   return `${yy}${mm}${dd}_${random}`;
 }
 
-function resolveOrderItems(
+async function resolveOrderItems(
   items: { id: string; quantity: number; options?: ProductOptions }[] = [],
 ) {
   const orderItems: OrderItem[] = [];
 
   for (const line of items) {
-    const product = products.find((item) => item.id === line.id);
+    const product = await getProductById(line.id);
     if (!product || !line.quantity || line.quantity < 1) continue;
 
-    // Topping chỉ có ở trà sữa — bỏ topping client gửi lên cho món khác.
-    const options =
-      line.options && !supportsToppings(product.category)
-        ? { ...line.options, toppings: [] }
-        : line.options;
-    const unitPrice = parsePrice(product.price) + computeOptionsSurcharge(options);
+    // Chuẩn hoá lựa chọn theo đúng size/tuỳ chọn khai báo của MÓN NÀY — bỏ
+    // qua size/tuỳ chọn không hợp lệ mà client gửi lên.
+    const options = normalizeOptions(product, line.options);
+    const unitPrice = computeUnitPrice(product, options);
 
     orderItems.push({
       id: product.id,
       title: product.title,
       price: `${unitPrice.toLocaleString("vi-VN")}đ`,
       quantity: line.quantity,
-      optionsLabel: describeOptions(options),
+      optionsLabel: describeOptions(product, options),
     });
   }
 
@@ -120,7 +118,7 @@ export async function checkout(req: Request, res: Response) {
     return;
   }
 
-  const { orderItems, amount: subtotal } = resolveOrderItems(body.items);
+  const { orderItems, amount: subtotal } = await resolveOrderItems(body.items);
 
   if (orderItems.length === 0) {
     res.status(400).json({ message: "Sản phẩm trong giỏ hàng không hợp lệ" });
@@ -339,7 +337,7 @@ export async function createOrderMac(req: Request, res: Response) {
     items?: { id: string; quantity: number; options?: ProductOptions }[];
     userId?: string;
   };
-  const { orderItems, amount } = resolveOrderItems(body.items);
+  const { orderItems, amount } = await resolveOrderItems(body.items);
 
   if (orderItems.length === 0) {
     res.status(400).json({ message: "Sản phẩm trong giỏ hàng không hợp lệ" });

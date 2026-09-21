@@ -11,7 +11,7 @@ import {
   useParams,
 } from "zmp-ui";
 import { ApiError } from "@/services/api";
-import { fetchProductById, fetchProducts, Product } from "@/services/products";
+import { fetchProductById, fetchProducts, formatPrice, Product } from "@/services/products";
 import {
   createProductReview,
   fetchProductReviews,
@@ -28,25 +28,12 @@ import { favoriteIdsAtom } from "@/store/favorites";
 import ProductCard from "@/components/product-card";
 import {
   buildCartLineId,
-  computeOptionsSurcharge,
+  computeUnitPrice,
+  defaultOptions,
   describeOptions,
-  isCustomizableCategory,
-  supportsToppings,
-  LevelOption,
-  LEVEL_OPTIONS,
-  SizeOption,
-  SIZE_OPTIONS,
-  ToppingOption,
-  TOPPING_OPTIONS,
+  ProductOptions,
+  ProductSelections,
 } from "@/services/customization";
-
-function parsePrice(price: string) {
-  return Number(price.replace(/[^\d]/g, ""));
-}
-
-function formatPrice(value: number) {
-  return `${value.toLocaleString("vi-VN")}đ`;
-}
 
 function ProductDetailPage() {
   const navigate = useNavigate();
@@ -68,10 +55,8 @@ function ProductDetailPage() {
     y: number;
     tapping: boolean;
   } | null>(null);
-  const [selectedSize, setSelectedSize] = useState<SizeOption>("S");
-  const [selectedSugar, setSelectedSugar] = useState<LevelOption>("100");
-  const [selectedIce, setSelectedIce] = useState<LevelOption>("100");
-  const [selectedToppings, setSelectedToppings] = useState<ToppingOption[]>([]);
+  const [selectedSizeCode, setSelectedSizeCode] = useState<string>("");
+  const [selections, setSelections] = useState<ProductSelections>({});
   const [added, setAdded] = useState(false);
   const [related, setRelated] = useState<Product[]>([]);
   const [relatedLoading, setRelatedLoading] = useState(true);
@@ -103,15 +88,16 @@ function ProductDetailPage() {
     setStatus("loading");
     setMounted(false);
     setQuantity(1);
-    setSelectedSize("S");
-    setSelectedSugar("100");
-    setSelectedIce("100");
-    setSelectedToppings([]);
+    setSelectedSizeCode("");
+    setSelections({});
 
     fetchProductById(id)
       .then((data) => {
         if (cancelled) return;
         setProduct(data);
+        const defaults = defaultOptions(data);
+        setSelectedSizeCode(defaults?.sizeCode ?? "");
+        setSelections(defaults?.selections ?? {});
         setStatus("ready");
       })
       .catch((err) => {
@@ -130,10 +116,8 @@ function ProductDetailPage() {
     if (status !== "ready" || !item) return;
     setQuantity(item.quantity);
     if (item.options) {
-      setSelectedSize(item.options.size);
-      setSelectedSugar(item.options.sugar);
-      setSelectedIce(item.options.ice);
-      setSelectedToppings(item.options.toppings ?? []);
+      setSelectedSizeCode(item.options.sizeCode);
+      setSelections(item.options.selections ?? {});
     }
   }, [status, editLineKey]);
 
@@ -304,34 +288,44 @@ function ProductDetailPage() {
         "quantity-plus",
       );
     }
-    const opts = isCustomizableCategory(product.category)
-      ? assistantIntent.options
-      : undefined;
-    if (opts?.size)
-      step(() => setSelectedSize(opts.size!), 1000, `size-${opts.size}`);
-    if (opts?.sugar)
-      step(() => setSelectedSugar(opts.sugar!), 1000, `sugar-${opts.sugar}`);
-    if (opts?.ice)
-      step(() => setSelectedIce(opts.ice!), 1000, `ice-${opts.ice}`);
-    for (const topping of opts?.toppings ?? []) {
-      step(() =>
-        setSelectedToppings((prev) =>
-          prev.includes(topping) ? prev : [...prev, topping],
-        ),
-        1000,
-        `topping-${topping}`,
-      );
-    }
-    // Sửa món: danh sách topping mới thay thế hoàn toàn, nên bỏ chọn topping cũ.
-    if (assistantIntent.editLineKey && opts?.toppings) {
-      const wanted = opts.toppings;
-      for (const topping of editingItemRef.current?.options?.toppings ?? []) {
-        if (wanted.includes(topping)) continue;
+    const opts: ProductOptions | undefined =
+      product.sizes.length || product.customizations.length
+        ? assistantIntent.options
+        : undefined;
+    if (opts?.sizeCode)
+      step(() => setSelectedSizeCode(opts.sizeCode), 1000, `size-${opts.sizeCode}`);
+    for (const custom of product.customizations) {
+      const value = opts?.selections?.[custom.name];
+      if (value === undefined) continue;
+
+      if (custom.type === "toggle") {
         step(
-          () => setSelectedToppings((prev) => prev.filter((t) => t !== topping)),
+          () => setSelections((prev) => ({ ...prev, [custom.name]: value })),
           1000,
-          `topping-${topping}`,
+          `custom-${custom.name}`,
         );
+      } else if (custom.type === "single" && typeof value === "string") {
+        step(
+          () => setSelections((prev) => ({ ...prev, [custom.name]: value })),
+          1000,
+          `custom-${custom.name}-${value}`,
+        );
+      } else if (custom.type === "multi" && Array.isArray(value)) {
+        for (const item of value) {
+          step(
+            () =>
+              setSelections((prev) => {
+                const current = Array.isArray(prev[custom.name])
+                  ? (prev[custom.name] as string[])
+                  : [];
+                return current.includes(item)
+                  ? prev
+                  : { ...prev, [custom.name]: [...current, item] };
+              }),
+            1000,
+            `custom-${custom.name}-${item}`,
+          );
+        }
       }
     }
     step(() => setAutoAdd(true), 900, "add-to-cart");
@@ -357,11 +351,6 @@ function ProductDetailPage() {
     setTimeout(() => setBotCursor(null), 1200);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoAdd]);
-
-  const baseUnitPrice = useMemo(
-    () => (product ? parsePrice(product.price) : 0),
-    [product],
-  );
 
   if (status === "loading") {
     return (
@@ -414,8 +403,8 @@ function ProductDetailPage() {
   }
 
   const isFavorite = favoriteIds.includes(product.id);
-  const customizable = isCustomizableCategory(product.category);
-  const hasToppings = supportsToppings(product.category);
+  const hasSizes = product.sizes.length > 1;
+  const customizable = product.sizes.length > 0 || product.customizations.length > 0;
 
   const handleToggleFavorite = () => {
     setFavoriteIds((prev) =>
@@ -425,25 +414,27 @@ function ProductDetailPage() {
     );
   };
 
-  const toggleTopping = (value: ToppingOption) => {
-    setSelectedToppings((prev) =>
-      prev.includes(value)
-        ? prev.filter((item) => item !== value)
-        : [...prev, value],
-    );
+  const setSelectionValue = (name: string, value: string | string[] | boolean) => {
+    setSelections((prev) => ({ ...prev, [name]: value }));
   };
 
-  const options = customizable
-    ? {
-        size: selectedSize,
-        sugar: selectedSugar,
-        ice: selectedIce,
-        toppings: hasToppings ? selectedToppings : [],
-      }
+  const toggleMultiSelection = (name: string, value: string) => {
+    setSelections((prev) => {
+      const current = Array.isArray(prev[name]) ? (prev[name] as string[]) : [];
+      return {
+        ...prev,
+        [name]: current.includes(value)
+          ? current.filter((item) => item !== value)
+          : [...current, value],
+      };
+    });
+  };
+
+  const options: ProductOptions | undefined = customizable
+    ? { sizeCode: selectedSizeCode, selections }
     : undefined;
-  const surcharge = computeOptionsSurcharge(options);
-  const finalUnitPrice = baseUnitPrice + surcharge;
-  const optionsLabel = describeOptions(options);
+  const finalUnitPrice = computeUnitPrice(product, options);
+  const optionsLabel = describeOptions(product, options);
 
   const handleAddToCart = () => {
     const lineId = buildCartLineId(product.id, options);
@@ -633,10 +624,10 @@ function ProductDetailPage() {
           <Box className="flex flex-none items-center gap-1 rounded-full bg-white/80 px-2.5 py-1.5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
             <Text size="small">⭐</Text>
             <Text size="small" className="font-semibold text-[#2f2f2f]">
-              {product.rating}
+              {product.rating.toFixed(1)}
             </Text>
             <Text size="xSmall" className="text-gray-500">
-              ({product.reviews})
+              ({product.reviewsCount})
             </Text>
           </Box>
         </Box>
@@ -651,7 +642,7 @@ function ProductDetailPage() {
           )}
 
           <Text.Title size="small" className="font-bold text-red-500">
-            {product.price}
+            {formatPrice(finalUnitPrice)}
           </Text.Title>
         </Box>
       </Box>
@@ -717,7 +708,7 @@ function ProductDetailPage() {
         </Box>
 
         {/* =========================
-            TUỲ CHỌN MÓN — size, mức đường/đá, topping
+            TUỲ CHỌN MÓN — size + tuỳ chọn riêng của từng món
         ========================== */}
         {customizable && (
           <Box
@@ -728,118 +719,146 @@ function ProductDetailPage() {
               transitionDelay: "150ms",
             }}
           >
-            <Text className="font-semibold text-[#2f2f2f]">Kích cỡ</Text>
-            <Box className="mt-2 flex gap-2">
-              {SIZE_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  data-bot-opt={`size-${opt.value}`}
-                  onClick={() => setSelectedSize(opt.value)}
-                  className={`flex-1 rounded-xl border-[1.5px] py-2 text-sm font-semibold transition-colors ${
-                    selectedSize === opt.value
-                      ? "border-[#006AF5] bg-white text-[#2f2f2f]"
-                      : "border-gray-200 bg-white text-[#2f2f2f]"
-                  }`}
-                >
-                  {opt.label}
-                  {opt.surcharge > 0 && (
-                    <Text
-                      size="xSmall"
-                      className={selectedSize === opt.value ? "text-gray-400" : "text-gray-400"}
-                    >
-                      +{(opt.surcharge / 1000).toFixed(0)}k
-                    </Text>
-                  )}
-                </button>
-              ))}
-            </Box>
-
-            <Text className="mt-4 font-semibold text-[#2f2f2f]">Mức đường</Text>
-            <Box
-              className="mt-2 flex gap-2 overflow-x-auto pb-1"
-              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-            >
-              {LEVEL_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  data-bot-opt={`sugar-${opt.value}`}
-                  onClick={() => setSelectedSugar(opt.value)}
-                  className={`flex-none rounded-full border-[1.5px] px-4 py-1.5 text-sm font-semibold transition-colors ${
-                    selectedSugar === opt.value
-                      ? "border-[#006AF5] bg-white text-[#2f2f2f]"
-                      : "border-gray-200 bg-white text-[#2f2f2f]"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </Box>
-
-            <Text className="mt-4 font-semibold text-[#2f2f2f]">Mức đá</Text>
-            <Box
-              className="mt-2 flex gap-2 overflow-x-auto pb-1"
-              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-            >
-              {LEVEL_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  data-bot-opt={`ice-${opt.value}`}
-                  onClick={() => setSelectedIce(opt.value)}
-                  className={`flex-none rounded-full border-[1.5px] px-4 py-1.5 text-sm font-semibold transition-colors ${
-                    selectedIce === opt.value
-                      ? "border-[#006AF5] bg-white text-[#2f2f2f]"
-                      : "border-gray-200 bg-white text-[#2f2f2f]"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </Box>
-
-            {hasToppings && (
+            {hasSizes && (
               <>
-            <Text className="mt-4 font-semibold text-[#2f2f2f]">Thêm topping</Text>
-            <Box className="mt-2 flex flex-col gap-2">
-              {TOPPING_OPTIONS.map((opt) => {
-                const checked = selectedToppings.includes(opt.value);
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    data-bot-opt={`topping-${opt.value}`}
-                    onClick={() => toggleTopping(opt.value)}
-                    className={`flex items-center justify-between gap-3 rounded-xl border-[1.5px] px-3.5 py-2.5 transition-colors ${
-                      checked
-                        ? "border-[#006AF5] bg-white"
-                        : "border-gray-200 bg-white"
-                    }`}
-                  >
-                    <Box className="flex items-center gap-2.5">
-                      <Box
-                        className={`flex h-5 w-5 flex-none items-center justify-center rounded-md border-2 ${
-                          checked ? "border-[#006AF5] btn-liquid" : "border-gray-300"
-                        }`}
-                      >
-                        {checked && (
-                          <Icon icon="zi-check" size={12} className="text-white" />
-                        )}
-                      </Box>
-                      <Text size="small" className="text-[#2f2f2f]">
-                        {opt.label}
+                <Text className="font-semibold text-[#2f2f2f]">Kích cỡ</Text>
+                <Box className="mt-2 flex gap-2">
+                  {product.sizes.map((size) => (
+                    <button
+                      key={size.code}
+                      type="button"
+                      data-bot-opt={`size-${size.code}`}
+                      onClick={() => setSelectedSizeCode(size.code)}
+                      className={`flex-1 rounded-xl border-[1.5px] py-2 text-sm font-semibold transition-colors ${
+                        selectedSizeCode === size.code
+                          ? "border-[#006AF5] bg-white text-[#2f2f2f]"
+                          : "border-gray-200 bg-white text-[#2f2f2f]"
+                      }`}
+                    >
+                      {size.label}
+                      <Text size="xSmall" className="text-gray-400">
+                        {formatPrice(size.price)}
                       </Text>
-                    </Box>
-                    <Text size="small" className="font-semibold text-gray-500">
-                      +{formatPrice(opt.price)}
-                    </Text>
-                  </button>
-                );
-              })}
-            </Box>
+                    </button>
+                  ))}
+                </Box>
               </>
             )}
+
+            {product.customizations.map((custom) => {
+              if (custom.type === "toggle") {
+                const checked = selections[custom.name] === true;
+                return (
+                  <Box key={custom.name}>
+                    <Text className="mt-4 font-semibold text-[#2f2f2f]">
+                      {custom.name}
+                    </Text>
+                    <button
+                      type="button"
+                      data-bot-opt={`custom-${custom.name}`}
+                      onClick={() => setSelectionValue(custom.name, !checked)}
+                      className={`mt-2 flex w-full items-center justify-between gap-3 rounded-xl border-[1.5px] px-3.5 py-2.5 transition-colors ${
+                        checked ? "border-[#006AF5] bg-white" : "border-gray-200 bg-white"
+                      }`}
+                    >
+                      <Box className="flex items-center gap-2.5">
+                        <Box
+                          className={`flex h-5 w-5 flex-none items-center justify-center rounded-md border-2 ${
+                            checked ? "border-[#006AF5] btn-liquid" : "border-gray-300"
+                          }`}
+                        >
+                          {checked && (
+                            <Icon icon="zi-check" size={12} className="text-white" />
+                          )}
+                        </Box>
+                        <Text size="small" className="text-[#2f2f2f]">
+                          {custom.name}
+                        </Text>
+                      </Box>
+                      <Text size="small" className="font-semibold text-gray-500">
+                        +{formatPrice(custom.priceDelta ?? 0)}
+                      </Text>
+                    </button>
+                  </Box>
+                );
+              }
+
+              if (custom.type === "single") {
+                const selected = selections[custom.name];
+                return (
+                  <Box key={custom.name}>
+                    <Text className="mt-4 font-semibold text-[#2f2f2f]">
+                      {custom.name}
+                    </Text>
+                    <Box
+                      className="mt-2 flex gap-2 overflow-x-auto pb-1"
+                      style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                    >
+                      {(custom.options ?? []).map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          data-bot-opt={`custom-${custom.name}-${option}`}
+                          onClick={() => setSelectionValue(custom.name, option)}
+                          className={`flex-none rounded-full border-[1.5px] px-4 py-1.5 text-sm font-semibold transition-colors ${
+                            selected === option
+                              ? "border-[#006AF5] bg-white text-[#2f2f2f]"
+                              : "border-gray-200 bg-white text-[#2f2f2f]"
+                          }`}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </Box>
+                  </Box>
+                );
+              }
+
+              const selectedList = Array.isArray(selections[custom.name])
+                ? (selections[custom.name] as string[])
+                : [];
+              return (
+                <Box key={custom.name}>
+                  <Text className="mt-4 font-semibold text-[#2f2f2f]">
+                    {custom.name}
+                  </Text>
+                  <Box className="mt-2 flex flex-col gap-2">
+                    {(custom.options ?? []).map((option) => {
+                      const checked = selectedList.includes(option);
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          data-bot-opt={`custom-${custom.name}-${option}`}
+                          onClick={() => toggleMultiSelection(custom.name, option)}
+                          className={`flex items-center justify-between gap-3 rounded-xl border-[1.5px] px-3.5 py-2.5 transition-colors ${
+                            checked ? "border-[#006AF5] bg-white" : "border-gray-200 bg-white"
+                          }`}
+                        >
+                          <Box className="flex items-center gap-2.5">
+                            <Box
+                              className={`flex h-5 w-5 flex-none items-center justify-center rounded-md border-2 ${
+                                checked ? "border-[#006AF5] btn-liquid" : "border-gray-300"
+                              }`}
+                            >
+                              {checked && (
+                                <Icon icon="zi-check" size={12} className="text-white" />
+                              )}
+                            </Box>
+                            <Text size="small" className="text-[#2f2f2f]">
+                              {option}
+                            </Text>
+                          </Box>
+                          <Text size="small" className="font-semibold text-gray-500">
+                            +{formatPrice(custom.priceDelta ?? 0)}
+                          </Text>
+                        </button>
+                      );
+                    })}
+                  </Box>
+                </Box>
+              );
+            })}
           </Box>
         )}
 

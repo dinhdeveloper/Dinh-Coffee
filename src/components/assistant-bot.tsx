@@ -36,11 +36,11 @@ const VOICE_KEY = "assistant_voice";
 
 const GREETING = "Chào bạn! 👋 Hôm nay bạn muốn uống gì nè?";
 const QUICK_PICKS = [
-  { label: "☕ Cà phê", text: "Mình muốn uống cà phê" },
-  { label: "🧋 Trà sữa", text: "Mình muốn uống trà sữa" },
-  { label: "🍓 Trà trái cây", text: "Mình muốn uống trà trái cây" },
-  { label: "🍵 Matcha", text: "Mình muốn uống matcha" },
-  { label: "🍰 Bánh ngọt", text: "Mình muốn ăn bánh ngọt" },
+  { label: "☕ Cà phê nóng", text: "Mình muốn uống cà phê nóng" },
+  { label: "🧊 Cà phê lạnh", text: "Mình muốn uống cà phê lạnh" },
+  { label: "🍵 Trà", text: "Mình muốn uống trà" },
+  { label: "🍓 Nước giải khát", text: "Mình muốn uống nước giải khát" },
+  { label: "🍰 Đồ ăn", text: "Mình muốn ăn đồ ăn nhẹ" },
 ];
 
 // Lời bot nói ra mỗi khi đơn chuyển sang một bước mới của hành trình.

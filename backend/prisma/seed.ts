@@ -1,6 +1,10 @@
 // Seed dữ liệu mẫu ban đầu cho các bảng mới (chạy 1 lần, không tự chạy mỗi
 // lần deploy như "prisma db push"): npx tsx prisma/seed.ts
 import { PrismaClient } from "@prisma/client";
+import {
+  CATALOG_CATEGORIES,
+  CATALOG_PRODUCTS,
+} from "../src/data/catalog-seed-data";
 
 const prisma = new PrismaClient();
 
@@ -9,8 +13,8 @@ const STORE_STORIES = [
     title: "Cafe & Tea House",
     location: "Bình Thạnh, Hồ Chí Minh",
     rating: 4.8,
-    price: "35.000đ",
-    productId: "tra-sua-tran-chau",
+    price: "65.000đ",
+    productId: "hc-002",
     purchaseCount: 324234,
     image:
       "https://img.magnific.com/free-photo/composition-with-delicious-thai-tea-beverage_23-2148994334.jpg",
@@ -22,8 +26,8 @@ const STORE_STORIES = [
     title: "The Coffee Corner",
     location: "Quận 1, Hồ Chí Minh",
     rating: 4.7,
-    price: "45.000đ",
-    productId: "ca-phe-muoi",
+    price: "75.000đ",
+    productId: "hc-004",
     purchaseCount: 182567,
     image: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800",
     thumbnail:
@@ -34,8 +38,8 @@ const STORE_STORIES = [
     title: "Matcha Garden",
     location: "Thảo Điền, Thủ Đức",
     rating: 4.9,
-    price: "55.000đ",
-    productId: "matcha-da-xay",
+    price: "69.000đ",
+    productId: "tea-002",
     purchaseCount: 456892,
     image: "https://images.unsplash.com/photo-1515823064-d6e0c04616a7?w=800",
     thumbnail:
@@ -46,8 +50,8 @@ const STORE_STORIES = [
     title: "Saigon Brew Coffee",
     location: "Phú Nhuận, Hồ Chí Minh",
     rating: 4.6,
-    price: "39.000đ",
-    productId: "tra-dao-cam-sa",
+    price: "55.000đ",
+    productId: "tea-004",
     purchaseCount: 215430,
     image: "https://images.unsplash.com/photo-1445116572660-236099ec97a0?w=800",
     thumbnail:
@@ -58,8 +62,8 @@ const STORE_STORIES = [
     title: "Milk Tea Station",
     location: "Gò Vấp, Hồ Chí Minh",
     rating: 4.5,
-    price: "42.000đ",
-    productId: "banh-flan-tra-sua",
+    price: "75.000đ",
+    productId: "fd-004",
     purchaseCount: 298761,
     image: "https://images.unsplash.com/photo-1558857563-b371033873b8?w=800",
     thumbnail:
@@ -73,8 +77,8 @@ const FEATURE_CARDS = [
     title: "Cafe & Tea House",
     location: "Bình Thạnh, Hồ Chí Minh",
     rating: 4.8,
-    price: "35.000đ",
-    productId: "tra-sua-tran-chau",
+    price: "65.000đ",
+    productId: "hc-002",
     purchaseCount: 324234,
     image:
       "https://img.magnific.com/free-photo/composition-with-delicious-thai-tea-beverage_23-2148994334.jpg",
@@ -86,8 +90,8 @@ const FEATURE_CARDS = [
     title: "The Coffee Corner",
     location: "Quận 1, Hồ Chí Minh",
     rating: 4.7,
-    price: "45.000đ",
-    productId: "ca-phe-muoi",
+    price: "75.000đ",
+    productId: "hc-004",
     purchaseCount: 182567,
     image: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800",
     thumbnail:
@@ -98,8 +102,8 @@ const FEATURE_CARDS = [
     title: "Matcha Garden",
     location: "Thảo Điền, Thủ Đức",
     rating: 4.9,
-    price: "55.000đ",
-    productId: "matcha-da-xay",
+    price: "69.000đ",
+    productId: "tea-002",
     purchaseCount: 456892,
     image: "https://images.unsplash.com/photo-1515823064-d6e0c04616a7?w=800",
     thumbnail:
@@ -110,8 +114,8 @@ const FEATURE_CARDS = [
     title: "Saigon Brew Coffee",
     location: "Phú Nhuận, Hồ Chí Minh",
     rating: 4.6,
-    price: "39.000đ",
-    productId: "tra-dao-cam-sa",
+    price: "55.000đ",
+    productId: "tea-004",
     purchaseCount: 215430,
     image: "https://images.unsplash.com/photo-1445116572660-236099ec97a0?w=800",
     thumbnail:
@@ -122,8 +126,8 @@ const FEATURE_CARDS = [
     title: "Milk Tea Station",
     location: "Gò Vấp, Hồ Chí Minh",
     rating: 4.5,
-    price: "42.000đ",
-    productId: "banh-flan-tra-sua",
+    price: "75.000đ",
+    productId: "fd-004",
     purchaseCount: 298761,
     image: "https://images.unsplash.com/photo-1558857563-b371033873b8?w=800",
     thumbnail:
@@ -156,54 +160,115 @@ const NOTIFICATIONS = [
   },
 ];
 
+// linkValue của loại "category" là category SLUG (vd "hot-coffees"), được đổi
+// sang đúng id thật trong DB ở seedPromotions() bên dưới — vì id là cuid chỉ
+// biết được sau khi seedCatalog() chạy xong.
 const PROMOTIONS = [
   {
-    title: "Trà sữa hôm nay",
+    title: "Latte hôm nay",
     subtitle: "Ưu đãi nhẹ cho một ngày thật ngọt.",
     content:
-      "Giảm ngay 10.000đ cho mọi ly trà sữa trân châu khi đặt qua Mini App, áp dụng cho đơn hàng đầu tiên trong ngày.",
+      "Giảm ngay 10.000đ cho mọi ly Caffè Latte khi đặt qua Mini App, áp dụng cho đơn hàng đầu tiên trong ngày.",
     discountLabel: "-10.000đ",
-    code: "TRASUA10K",
+    code: "LATTE10K",
     image:
       "https://img.magnific.com/free-photo/composition-with-delicious-thai-tea_23-2148994319.jpg",
     linkType: "product",
-    linkValue: "tra-sua-tran-chau",
+    linkValue: "hc-002",
     endAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     sortOrder: 0,
   },
   {
-    title: "Vị Thái thơm béo",
-    subtitle: "Đậm vị trà, mịn vị sữa.",
+    title: "Cà phê lạnh mùa hè",
+    subtitle: "Đậm vị, mát lạnh cả ngày.",
     content:
-      "Bộ sưu tập trà sữa phong cách Thái Lan chính thức ra mắt — đậm đà, béo mịn, giá không đổi.",
+      "Bộ sưu tập cà phê lạnh chính thức ra mắt — đậm đà, mát lạnh, giá không đổi.",
     discountLabel: "MỚI",
     code: null,
     image:
       "https://img.magnific.com/free-photo/composition-with-delicious-thai-tea-beverage_23-2148994334.jpg",
     linkType: "category",
-    linkValue: "Trà sữa",
+    linkValue: "cold-coffees",
     endAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
     sortOrder: 1,
   },
   {
-    title: "Berry signature",
+    title: "Pink Drink signature",
     subtitle: "Một chút chua ngọt cho buổi chiều.",
     content:
-      "Berry signature — thức uống chua ngọt tự nhiên, topping bồng bềnh, chỉ có tại BoomBerry.",
+      "Pink Drink — thức uống chua ngọt tự nhiên, béo nhẹ vị dừa, chỉ có tại BoomBerry.",
     discountLabel: "-20%",
-    code: "BERRY20",
+    code: "PINK20",
     image:
       "https://img.magnific.com/free-photo/arrangement-with-delicious-traditional-thai-tea_23-2148994372.jpg",
     linkType: "product",
-    linkValue: "berry-signature",
+    linkValue: "rf-003",
     endAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
     sortOrder: 2,
   },
 ];
 
+async function seedCatalog() {
+  const idBySlug = new Map<string, string>();
+
+  for (const category of CATALOG_CATEGORIES) {
+    const record = await prisma.category.upsert({
+      where: { slug: category.slug },
+      create: category,
+      update: {
+        name: category.name,
+        nameEn: category.nameEn,
+        imageUrl: category.imageUrl,
+        sortOrder: category.sortOrder,
+      },
+    });
+    idBySlug.set(category.slug, record.id);
+  }
+
+  for (const product of CATALOG_PRODUCTS) {
+    const categoryId = idBySlug.get(product.categorySlug);
+    const data = {
+      title: product.title,
+      titleEn: product.titleEn,
+      price: product.sizes[0]?.price ?? 0,
+      image: product.image,
+      categoryId,
+      sizes: product.sizes,
+      customizations: product.customizations,
+      nutrition: product.nutrition ?? undefined,
+      allergens: product.allergens,
+      tags: product.tags,
+      description: product.description,
+      isActive: product.isActive,
+    };
+
+    await prisma.product.upsert({
+      where: { id: product.id },
+      create: { id: product.id, ...data },
+      update: data,
+    });
+  }
+
+  console.log(
+    `Seeded catalog: ${CATALOG_CATEGORIES.length} categories, ${CATALOG_PRODUCTS.length} products`,
+  );
+
+  return idBySlug;
+}
+
 async function main() {
+  const categoryIdBySlug = await seedCatalog();
+
   if ((await prisma.promotion.count()) === 0) {
-    await prisma.promotion.createMany({ data: PROMOTIONS });
+    await prisma.promotion.createMany({
+      data: PROMOTIONS.map((promo) => ({
+        ...promo,
+        linkValue:
+          promo.linkType === "category"
+            ? categoryIdBySlug.get(promo.linkValue) ?? promo.linkValue
+            : promo.linkValue,
+      })),
+    });
     console.log("Seeded promotions");
   }
 

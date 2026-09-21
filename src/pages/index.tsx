@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAtomValue } from "jotai";
 import { Page, Text, Swiper, Box, Icon, useNavigate } from "zmp-ui";
 import { fetchProducts, Product } from "@/services/products";
+import { Category, fetchCategories } from "@/services/categories";
 import { fetchStories, StoreStory } from "@/services/stories";
 import { fetchFeatureCards, FeatureCard } from "@/services/feature-cards";
 import { fetchPromotions, Promotion } from "@/services/promotions";
@@ -44,6 +45,8 @@ function HomePage() {
 
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [promotionsLoading, setPromotionsLoading] = useState(true);
+
+  const [categories, setCategories] = useState<Category[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -143,28 +146,23 @@ function HomePage() {
     };
   }, []);
 
-  const categories = [
-    {
-      label: "Trà sữa",
-      icon: "🧋",
-      bg: "#FFF0F5",
-    },
-    {
-      label: "Trà trái cây",
-      icon: "🍓",
-      bg: "#FFF4E8",
-    },
-    {
-      label: "Cà phê",
-      icon: "☕",
-      bg: "#F5EFE6",
-    },
-    {
-      label: "Bánh ngọt",
-      icon: "🍰",
-      bg: "#F3EEFF",
-    },
-  ] as const;
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchCategories()
+      .then((data) => {
+        if (!cancelled) setCategories(data);
+      })
+      .catch(() => {
+        if (!cancelled) setCategories([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const CATEGORY_TILE_BG = ["#FFF0F5", "#FFF4E8", "#F5EFE6", "#F3EEFF", "#E9F5FF", "#F0FFF4"];
 
   return (
     <Page
@@ -298,31 +296,31 @@ function HomePage() {
           CATEGORIES
       ========================== */}
       <Box className="mt-5 grid w-full flex-none grid-cols-4 gap-y-4 rounded-lg bg-white px-2 py-4 shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
-        {categories.map((category) => (
+        {categories.map((category, index) => (
           <button
-            key={category.label}
+            key={category.id}
             type="button"
-            onClick={() =>
-              navigate(`/category/${encodeURIComponent(category.label)}`)
-            }
+            onClick={() => navigate(`/category/${category.id}`)}
             className="flex min-w-0 flex-col items-center gap-2 border-0 bg-transparent px-1 text-center transition-transform active:scale-95"
           >
             <Box
-              className="flex h-12 w-12 items-center justify-center rounded-xl"
+              className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl"
               style={{
-                backgroundColor: category.bg,
+                backgroundColor: CATEGORY_TILE_BG[index % CATEGORY_TILE_BG.length],
               }}
             >
-              <Text className="text-[26px] leading-none">
-                {category.icon}
-              </Text>
+              <img
+                src={category.imageUrl}
+                alt={category.name}
+                className="h-full w-full object-cover"
+              />
             </Box>
 
             <Text
               size="xxSmall"
               className="w-full truncate font-medium text-[#2f2f2f]"
             >
-              {category.label}
+              {category.name}
             </Text>
           </button>
         ))}

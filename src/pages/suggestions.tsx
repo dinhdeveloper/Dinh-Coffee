@@ -42,7 +42,7 @@ function SuggestionsPage() {
 
   const categories = useMemo(() => {
     const unique = Array.from(new Set(products.map((item) => item.category)));
-    return unique.filter(Boolean);
+    return unique.filter((c): c is string => Boolean(c));
   }, [products]);
 
   const filtered = useMemo(() => {
