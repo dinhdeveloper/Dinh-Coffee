@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useAtom, useAtomValue } from "jotai";
 import { createPortal } from "react-dom";
-import { createOrder as createZaloCheckoutOrder } from "zmp-sdk";
+import { events, EventName, openWebview } from "zmp-sdk";
 import { Box, Icon, Page, Text, useNavigate } from "zmp-ui";
 import { CartItem, cartItemsAtom, cartLineKey, cartTotalAtom } from "@/store/cart";
 import { ApiError } from "@/services/api";
 import {
+  checkoutOrder,
   fetchOrderStatus,
-  linkCheckoutOrder,
-  prepareZaloOrder,
+  type PaymentMethod,
 } from "@/services/orders";
 import { addOrderToHistory, announceOrderPaid } from "@/services/order-history";
 import { fetchUser } from "@/services/users";
@@ -218,6 +218,7 @@ function CartPage() {
   const [addressError, setAddressError] = useState<string | null>(null);
   const [userPoints, setUserPoints] = useState<number | null>(null);
   const [usePoints, setUsePoints] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("zalopay");
   const pollTimer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
@@ -424,9 +425,9 @@ function CartPage() {
     setPhase("creating");
     clearTimeout(pollTimer.current);
 
-    let prepared: Awaited<ReturnType<typeof prepareZaloOrder>>;
+    let order: Awaited<ReturnType<typeof checkoutOrder>>;
     try {
-      prepared = await prepareZaloOrder(
+      order = await checkoutOrder(
         items.map((item) => ({
           id: item.id,
           quantity: item.quantity,
@@ -435,6 +436,7 @@ function CartPage() {
         getStoredZaloUser()?.id,
         address,
         pointsToRedeem,
+        paymentMethod,
       );
     } catch (err) {
       const detail = describeError(err);
@@ -448,27 +450,22 @@ function CartPage() {
       return;
     }
 
-    // createOrder() của zmp-sdk (Checkout SDK) tự mở bảng chọn phương thức
-    // thanh toán gốc của Zalo (ZaloPay, thẻ ATM, MoMo, VNPay...) — không tự
-    // vẽ danh sách ví, giống app mẫu zaui-coffee. mac đã ký sẵn ở backend
-    // (/orders/mac) bằng private key riêng của Mini App.
     try {
-      const result = await createZaloCheckoutOrder({
-        amount: prepared.amount,
-        desc: prepared.desc,
-        item: prepared.item,
-        mac: prepared.mac,
+      // openOutApp bị Zalo chặn quyền (code -1403) trừ khi Mini App được
+      // cấp quyền riêng, nên dùng openWebview để mở trang thanh toán
+      // (ZaloPay/MoMo) ngay trong Mini App thay vì thoát ra app ngoài.
+      await openWebview({
+        url: order.orderUrl,
+        config: { style: "bottomSheet" },
       });
-
-      if (result.orderId) {
-        await linkCheckoutOrder(prepared.orderId, result.orderId);
-      }
-
       setPhase("waiting");
-      pollOrderStatus(prepared.orderId, Date.now());
+
+      events.once(EventName.WebviewClosed, () => {
+        pollOrderStatus(order.orderId, Date.now());
+      });
     } catch (err) {
       const detail = describeError(err);
-      console.error("[checkout] createOrder thất bại:", detail);
+      console.error("[checkout] openWebview thất bại:", detail, order.orderUrl);
       setPhase("address");
       setCheckoutError(
         `Không thể mở giao diện thanh toán (${detail}), vui lòng thử lại`,
@@ -617,6 +614,28 @@ function CartPage() {
                 </span>
               </button>
             )}
+
+            <Box className="mb-3 flex gap-2">
+              {(
+                [
+                  { value: "zalopay", label: "ZaloPay" },
+                  { value: "momo", label: "MoMo" },
+                ] as const
+              ).map((method) => (
+                <button
+                  key={method.value}
+                  type="button"
+                  onClick={() => setPaymentMethod(method.value)}
+                  className={`flex h-10 flex-1 items-center justify-center rounded-full border text-sm font-medium transition-colors active:opacity-80 ${
+                    paymentMethod === method.value
+                      ? "border-transparent btn-liquid text-white"
+                      : "border-gray-200 bg-white text-[#2f2f2f]"
+                  }`}
+                >
+                  {method.label}
+                </button>
+              ))}
+            </Box>
 
             {checkoutError && (
               <Text size="small" className="mb-2 text-red-500">
@@ -901,7 +920,7 @@ function CartPage() {
                     Đang chờ xác nhận thanh toán
                   </Text.Title>
                   <Text size="small" className="mt-1 text-gray-500">
-                    Hoàn tất thanh toán rồi quay lại đây
+                    Hoàn tất thanh toán trên {paymentMethod === "momo" ? "MoMo" : "ZaloPay"} rồi quay lại đây
                   </Text>
 
                   <button

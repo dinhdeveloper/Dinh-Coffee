@@ -336,22 +336,13 @@ export async function createOrderMac(req: Request, res: Response) {
   const body = req.body as {
     items?: { id: string; quantity: number; options?: ProductOptions }[];
     userId?: string;
-    address?: { receiver: string; phone: string; detail: string; note?: string };
-    pointsToRedeem?: number;
   };
-  const { orderItems, amount: subtotal } = await resolveOrderItems(body.items);
+  const { orderItems, amount } = await resolveOrderItems(body.items);
 
   if (orderItems.length === 0) {
     res.status(400).json({ message: "Sản phẩm trong giỏ hàng không hợp lệ" });
     return;
   }
-
-  const { pointsUsed, discount } = await resolvePointsRedemption(
-    body.userId,
-    subtotal,
-    body.pointsToRedeem,
-  );
-  const amount = subtotal - discount;
 
   const desc = "Thanh toan don hang BoomBerry";
   const item = orderItems.map((line) => ({
@@ -361,19 +352,14 @@ export async function createOrderMac(req: Request, res: Response) {
     quantity: line.quantity,
   }));
 
-  // mac ký trên số tiền THỰC TRẢ (đã trừ điểm thưởng) — phải khớp đúng amount
-  // gửi cho zmp-sdk's createOrder(), nếu không Zalo sẽ từ chối vì sai chữ ký.
   const mac = signCreateOrder({ amount, desc, item });
 
   const order = await createOrder({
     id: generateAppTransId(),
     items: orderItems,
-    subtotal,
-    discount,
-    pointsUsed,
+    subtotal: amount,
     amount,
     userId: body.userId,
-    address: body.address,
   });
 
   res.json({ data: { orderId: order.id, amount, desc, item, mac } });

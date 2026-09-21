@@ -97,18 +97,10 @@ export type CreateOrderPayload = {
 
 type CreateOrderMacResponse = { data: CreateOrderPayload };
 
-export function prepareZaloOrder(
-  items: CheckoutItem[],
-  userId?: string,
-  address?: DeliveryAddress,
-  pointsToRedeem?: number,
-) {
-  return apiPost<CreateOrderMacResponse>("/orders/mac", {
-    items,
-    userId,
-    address,
-    pointsToRedeem,
-  }).then((res) => res.data);
+export function prepareZaloOrder(items: CheckoutItem[]) {
+  return apiPost<CreateOrderMacResponse>("/orders/mac", { items }).then(
+    (res) => res.data,
+  );
 }
 
 // Gọi ngay sau khi createOrder() (Checkout SDK) trả về orderId của Zalo, để
