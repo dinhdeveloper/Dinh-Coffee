@@ -9,7 +9,7 @@ export async function listCategories(_req: Request, res: Response) {
   res.json({
     data: categories.map((category) => ({
       id: category.id,
-      slug: category.slug,
+      slug: category.slug ?? category.id,
       name: category.name,
       nameEn: category.nameEn,
       imageUrl: category.imageUrl,

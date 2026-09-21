@@ -154,10 +154,14 @@ model ProductStat {
 // thị trên UI, nameEn giữ tên gốc để tham khảo/đối chiếu nguồn.
 model Category {
   id        String    @id @default(cuid())
-  slug      String    @unique
-  name      String // tên tiếng Việt hiển thị, vd "Cà phê nóng"
-  nameEn    String // tên gốc, vd "Hot Coffees"
-  imageUrl  String
+  // Nullable dù về logic luôn có giá trị — cho phép "prisma db push" thêm cột
+  // này an toàn vào bảng đã có sẵn dữ liệu cũ (không có default hợp lệ cho
+  // cột unique khi nhiều dòng cùng lúc cần giá trị). Dòng cũ sẽ có slug NULL
+  // cho tới khi seed lại.
+  slug      String?   @unique
+  name      String    @default("") // tên tiếng Việt hiển thị, vd "Cà phê nóng"
+  nameEn    String    @default("") // tên gốc, vd "Hot Coffees"
+  imageUrl  String    @default("")
   sortOrder Int       @default(0)
   createdAt DateTime  @default(now())
   products  Product[]
@@ -177,7 +181,7 @@ model Product {
   image         String
   categoryId    String?
   category      Category?  @relation(fields: [categoryId], references: [id])
-  sizes         Json // ProductSize[] — [{ code, label, volumeMl, price }]
+  sizes         Json      @default("[]") // ProductSize[] — [{ code, label, volumeMl, price }]
   customizations Json      @default("[]") // ProductCustomization[] — [{ name, type: "single"|"multi"|"toggle", options?, priceDelta? }]
   nutrition     Json? // thông tin dinh dưỡng tự do theo từng món, hiển thị ở trang chi tiết
   allergens     String[]  @default([])
